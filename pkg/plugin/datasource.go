@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"sort"
+	"strings"
 
 	//"strconv"
 	"time"
@@ -147,7 +149,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
 	}
 
-	log.DefaultLogger.Info("Frontend passed queryText:", "queryText", qm.QueryText) // Optional: override values if frontend passed QueryText
+	log.DefaultLogger.Info("Frontend passed queryText:", "queryText", qm.QueryText)
 
 	config, _ := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
 
@@ -158,26 +160,90 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	url := fmt.Sprintf(
 		"%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
 		config.BaseUrl,
-		from,
-		to,
-		qm.QueryText,
+		url.QueryEscape(from),
+		url.QueryEscape(to),
+		url.QueryEscape(qm.QueryText),
 	)
 
 	client := &http.Client{}
 	req2, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		panic(err)
+		log.DefaultLogger.Error("Failed to create request:", err)
+		return backend.ErrDataResponse(backend.StatusInternal, "Failed to create API request")
 	}
 
+	log.DefaultLogger.Info("Request URL:", url)
+
 	req2.Header.Set("Authorization", config.Secrets.ApiKey)
+	req2.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req2)
 	if err != nil {
-		panic(err)
+		log.DefaultLogger.Error("HTTP request failed:", err)
+		return backend.ErrDataResponse(backend.StatusBadGateway, "API request failed")
 	}
 	defer resp.Body.Close()
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, readErr := ioutil.ReadAll(resp.Body)
+	if readErr != nil {
+		log.DefaultLogger.Error("Failed to read response body:", readErr)
+		return backend.ErrDataResponse(backend.StatusInternal, "Failed to read API response")
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		if len(body) == 0 {
+			return backend.ErrDataResponse(backend.StatusBadRequest,
+				fmt.Sprintf("API returned status %d with empty response body", resp.StatusCode))
+		}
+
+		// First, check if the response is plain text (non-JSON)
+		contentType := resp.Header.Get("Content-Type")
+		if !strings.Contains(contentType, "application/json") {
+			// Handle plain text error responses
+			return backend.ErrDataResponse(backend.StatusBadRequest,
+				fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+		}
+
+		// Try to parse as JSON error response
+		var errResp struct {
+			Errors  map[string][]string `json:"errors"`
+			Type    string              `json:"type"`
+			Title   string              `json:"title"`
+			Status  int                 `json:"status"`
+			TraceId string              `json:"traceId"` // Note: lowercase 'd' in JSON vs uppercase in struct
+		}
+
+		if jsonErr := json.Unmarshal(body, &errResp); jsonErr != nil {
+			// If JSON parsing fails, return raw body with content type info
+			contentType := resp.Header.Get("Content-Type")
+			log.DefaultLogger.Error("Failed to parse error response as JSON:", jsonErr)
+			log.DefaultLogger.Error("Content-Type:", contentType)
+			return backend.ErrDataResponse(backend.StatusBadRequest,
+				fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+		}
+
+		// Extract error messages from the errors map
+		var errorMessages []string
+		for field, messages := range errResp.Errors {
+			for _, msg := range messages {
+				errorMessages = append(errorMessages, fmt.Sprintf("%s: %s", field, msg))
+			}
+		}
+
+		// If we have specific field errors, use them
+		if len(errorMessages) > 0 {
+			return backend.ErrDataResponse(backend.StatusBadRequest,
+				fmt.Sprintf("Validation error: %s", strings.Join(errorMessages, "; ")))
+		}
+
+		// Fallback to title or generic error
+		if errResp.Title != "" {
+			return backend.ErrDataResponse(backend.StatusBadRequest, errResp.Title)
+		}
+
+		return backend.ErrDataResponse(backend.StatusBadRequest,
+			fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+	}
 
 	var raw []rawLiveValue
 	if err := json.Unmarshal(body, &raw); err != nil {
@@ -338,6 +404,14 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 			fmt.Println("Raw response:", string(body))
 			panic(err)
 		}
+		data = append(data, Connections{
+			ID:             0,
+			ConnectionName: "Internal",
+		})
+
+		sort.Slice(data, func(i, j int) bool {
+			return data[i].ID < data[j].ID
+		})
 
 		finalBody, err := json.Marshal(data)
 
