@@ -9,8 +9,6 @@ import (
 	"net/url"
 	"sort"
 	"strings"
-
-	//"strconv"
 	"time"
 
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
@@ -19,51 +17,6 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/init/in-view/pkg/models"
 )
-
-type Todo struct {
-	UserID    int    `json:"userId"`
-	ID        int    `json:"id"`
-	Title     string `json:"title"`
-	Completed bool   `json:"completed"`
-}
-
-// Define the struct to match your JSON data
-type SensorData struct {
-	VariableID int        `json:"VariableId"`
-	Value      float64    `json:"Value"`
-	Timestamp  CustomTime `json:"timestamp"`
-	Quality    int        `json:"quality"`
-}
-
-type Variables struct {
-	ID           int    `json:"id"`
-	VariableName string `json:"variableName"`
-}
-
-type Connections struct {
-	ID             int    `json:"id"`
-	ConnectionName string `json:"name"`
-}
-
-type LiveValues struct {
-	ID  int `json:"VariableId"`
-	Val any `json:"Value"`
-}
-
-// CustomTime is a wrapper around time.Time to handle the timestamp format
-type CustomTime struct {
-	time.Time
-}
-
-type rawLiveValue struct {
-	Timestamp string  `json:"timestamp"`
-	Value     float64 `json:"Value"`
-}
-
-type LiveValueTimeseries struct {
-	Timestamp time.Time `json:"timestamp"`
-	Value     float64   `json:"value"`
-}
 
 // UnmarshalJSON implements the json.Unmarshaler interface
 func (ct *CustomTime) UnmarshalJSON(data []byte) error {
@@ -134,14 +87,10 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 	return response, nil
 }
 
-type queryModel struct {
-	QueryText string `json:"queryText"`
-}
 
 func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery, req *backend.QueryDataRequest) backend.DataResponse {
 	var response backend.DataResponse
 
-	// Unmarshal the JSON into our queryModel.
 	var qm queryModel
 
 	err := json.Unmarshal(query.JSON, &qm)
@@ -153,10 +102,11 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 	config, _ := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
 
+	// TimeRange directly from Grafana FE
+
 	from := query.TimeRange.From.UTC().Format("2006-01-02T15:04:05")
 	to := query.TimeRange.To.UTC().Format("2006-01-02T15:04:05")
 
-	// Build URL with time range and varId
 	url := fmt.Sprintf(
 		"%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
 		config.BaseUrl,
@@ -196,25 +146,15 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 				fmt.Sprintf("API returned status %d with empty response body", resp.StatusCode))
 		}
 
-		// First, check if the response is plain text (non-JSON)
 		contentType := resp.Header.Get("Content-Type")
 		if !strings.Contains(contentType, "application/json") {
-			// Handle plain text error responses
 			return backend.ErrDataResponse(backend.StatusBadRequest,
 				fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
 		}
 
-		// Try to parse as JSON error response
-		var errResp struct {
-			Errors  map[string][]string `json:"errors"`
-			Type    string              `json:"type"`
-			Title   string              `json:"title"`
-			Status  int                 `json:"status"`
-			TraceId string              `json:"traceId"` // Note: lowercase 'd' in JSON vs uppercase in struct
-		}
+	
 
 		if jsonErr := json.Unmarshal(body, &errResp); jsonErr != nil {
-			// If JSON parsing fails, return raw body with content type info
 			contentType := resp.Header.Get("Content-Type")
 			log.DefaultLogger.Error("Failed to parse error response as JSON:", jsonErr)
 			log.DefaultLogger.Error("Content-Type:", contentType)
@@ -222,7 +162,6 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 				fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
 		}
 
-		// Extract error messages from the errors map
 		var errorMessages []string
 		for field, messages := range errResp.Errors {
 			for _, msg := range messages {
@@ -230,13 +169,11 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 			}
 		}
 
-		// If we have specific field errors, use them
 		if len(errorMessages) > 0 {
 			return backend.ErrDataResponse(backend.StatusBadRequest,
 				fmt.Sprintf("Validation error: %s", strings.Join(errorMessages, "; ")))
 		}
 
-		// Fallback to title or generic error
 		if errResp.Title != "" {
 			return backend.ErrDataResponse(backend.StatusBadRequest, errResp.Title)
 		}
@@ -264,7 +201,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 			Value:     r.Value,
 		})
 	}
-	log.DefaultLogger.Info("LiveValues :", "queryText", qm.QueryText) // Optional: override values if frontend passed QueryText
+	log.DefaultLogger.Info("LiveValues :", "queryText", qm.QueryText)
 
 	frame := data.NewFrame("response")
 
@@ -275,14 +212,12 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 		times3[i] = ts.Timestamp
 		values3[i] = ts.Value
 	}
-	// Combine into LiveValueTimeseries slice
 
 	frame.Fields = append(frame.Fields,
 		data.NewField("time", nil, times3),
 		data.NewField("values", nil, values3),
 	)
 
-	// add the frames to the response.
 	response.Frames = append(response.Frames, frame)
 
 	return response
@@ -322,13 +257,28 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 
 		u, _ := url.Parse(req.URL)
 		values := u.Query()
-		connId := values.Get("connId")
 
-		log.DefaultLogger.Info("Connection ID :", connId) // Optional: override values if frontend passed QueryText
+		if values.Get("page") == "" {
+			values.Set("page", "0")
+		}
+		if values.Get("itemsPerPage") == "" {
+			values.Set("itemsPerPage", "20")
+		}
+		if values.Get("skipFilterConns") == "" {
+			values.Set("skipFilterConns", "false")
+		}
+		if values.Get("connId") == "" {
+			values.Set("connId", "0")
+		}
+		if values.Get("likeParam") == "" {
+			values.Set("likeParam", "")
+		}
 
-		externalURL := fmt.Sprintf("%s/api/public/variables-dto?pageIndex=0&pageSize=10&connId=%s", config.BaseUrl, connId)
+		baseURL, _ := url.Parse(config.BaseUrl + "/api/public/variables-dto")
+		baseURL.RawQuery = values.Encode()
+
 		client := &http.Client{}
-		req, err := http.NewRequest("GET", externalURL, nil)
+		req, err := http.NewRequest("GET", baseURL.String(), nil)
 		if err != nil {
 			panic(err)
 		}
@@ -377,16 +327,27 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 
 	if req.Path == "Connections" {
 
+		u, _ := url.Parse(req.URL)
+		values := u.Query()
+
+		if values.Get("pageIndex") == "" {
+			values.Set("pageIndex", "0")
+		}
+		if values.Get("pageSize") == "" {
+			values.Set("pageSize", "10")
+		}
+		if values.Get("skipConnectionFilter") == "" {
+			values.Set("skipConnectionFilter", "false")
+		}
+
+		baseURL, _ := url.Parse(config.BaseUrl + "/api/public/connections")
+		baseURL.RawQuery = values.Encode()
+
 		client := &http.Client{}
-		req, err := http.NewRequest(
-			"GET",
-			fmt.Sprintf("%s/api/public/connections?pageIndex=0&pageSize=10", config.BaseUrl),
-			nil,
-		)
+		req, err := http.NewRequest("GET", baseURL.String(), nil)
 		if err != nil {
 			panic(err)
 		}
-
 		req.Header.Set("Authorization", config.Secrets.ApiKey)
 
 		resp, err := client.Do(req)
@@ -436,8 +397,6 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 		})
 
 	}
-
-	// Return 404 for unknown paths
 
 	return sender.Send(&backend.CallResourceResponse{
 

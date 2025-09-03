@@ -10,10 +10,11 @@ export interface ConnectionType {
 
 
 interface ConnectionSelectorProps {
-  value?:  string | null; // Now handles both id (number) and custom values (string)
-  onChange: (value: number | string) => void; // Returns either the id or custom value
+  value?:  string | null; 
+  onChange: (value: number | string) => void; 
+  onTextChange: (value: string) => void;
   onRunQuery?: () => void;
-  connections?: ConnectionType[]; // Your API response structure
+  connections?: ConnectionType[]; 
   width?: number;
   label?: string;
   tooltip?: string;
@@ -24,6 +25,7 @@ interface ConnectionSelectorProps {
 export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
   value,
   onChange,
+  onTextChange,
   onRunQuery = () => {},
   connections = [],
   width = 40,
@@ -32,14 +34,12 @@ export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
   allowCustomValue = true,
   placeholder = 'Select or type a value...',
 }) => {
-  // Convert variables to SelectableValue options
   const connectionOptions = connections.map(connection => ({
     label: connection.name,
-    value: connection.id.toString(), // Convert to string for consistent handling
-    original: connection // Keep reference to original data
+    value: connection.id.toString(), 
+    original: connection 
   }));
 
-  // Find the current selected option
   const selectedOption = connectionOptions.find(opt => opt.value === value?.toString()) || 
     (value && allowCustomValue ? { label: value.toString(), value: value.toString() } : null);
 
@@ -60,17 +60,25 @@ export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
 
   const handleChange = (selected: SelectableValue<string>) => {
     if (selected?.value) {
-      // Pass the ID as a number when selecting from dropdown
       onChange(selected.value);
     } else {
-      // Clear selection
       onChange('');
+      onTextChange("");            
     }
     onRunQuery();
   };
 
+  const handleInputChange = (inputValue: string, { action }: { action: string }) => {
+    if (action === 'input-change') {
+      console.log('User typed:', inputValue);
+      onTextChange(inputValue);
+    }
+    return inputValue;
+  };
+  
+  
+
   const handleCreateOption = (newValue: string) => {
-    // For custom values, pass the string directly
     onChange(newValue);
     onRunQuery();
   };
@@ -89,6 +97,7 @@ export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
         noOptionsMessage="No connections found"
         isClearable
         onCreateOption={handleCreateOption}
+        onInputChange={handleInputChange} 
       />
     </InlineField>
   );

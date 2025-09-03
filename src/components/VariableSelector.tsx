@@ -10,6 +10,7 @@ export interface VariableType {
 interface VariableSelectorProps {
   value?: string | null;
   onChange: (value: number | string) => void;
+  onTextChange: (value: string) => void; 
   onRunQuery?: () => void;
   variables?: VariableType[];
   width?: number;
@@ -22,6 +23,7 @@ interface VariableSelectorProps {
 export const VariableSelector: React.FC<VariableSelectorProps> = ({
   value,
   onChange,
+  onTextChange,
   onRunQuery = () => {},
   variables = [],
   width = 40,
@@ -30,24 +32,20 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   allowCustomValue = true,
   placeholder = 'Select or type a value...',
 }) => {
-  // Convert variables to SelectableValue options - useMemo to prevent recreation on every render
   const variableOptions = useMemo(() => {
-    console.log("Variables updated:", variables);
     return variables.map(variable => ({
       label: variable.variableName,
       value: variable.id.toString(),
       original: variable
     }));
-  }, [variables]); // Recreate only when variables change
+  }, [variables]); 
 
-  // Find the current selected option
   const selectedOption = useMemo(() => {
     return variableOptions.find(opt => opt.value === value?.toString()) || 
       (value && allowCustomValue ? { label: value.toString(), value: value.toString() } : null);
   }, [variableOptions, value, allowCustomValue]);
 
   const loadOptions = React.useCallback(async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
-    console.log("Loading options for input:", inputValue, "with", variableOptions.length, "variables");
     
     if (!inputValue) {
       return variableOptions;
@@ -59,32 +57,38 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
     );
     
     return filtered;
-  }, [variableOptions]); // Now depends on the latest variableOptions
+  }, [variableOptions]); 
 
   const handleChange = React.useCallback((selected: SelectableValue<string>) => {
-    console.log("Selection changed:", selected);
     
     if (selected?.value) {
       onChange(selected.value);
     } else {
       onChange('');
+      onTextChange("");
+
     }
     onRunQuery();
   }, [onChange, onRunQuery]);
 
   const handleCreateOption = React.useCallback((newValue: string) => {
-    console.log("Custom value created:", newValue);
     onChange(newValue);
     onRunQuery();
   }, [onChange, onRunQuery]);
 
-  // Debug: log when component renders
-  console.log("VariableSelector render - options:", variableOptions.length, "selected:", value);
+  const handleInputChange = (inputValue: string, { action }: { action: string }) => {
+    if (action === 'input-change') {
+      onTextChange(inputValue);
+    }
+    return inputValue;
+  };
+  
+
 
   return (
     <InlineField label={label} labelWidth={16} tooltip={tooltip}>
       <AsyncSelect
-        key={variableOptions.length} // Force re-render when options change
+        key={variableOptions.length} 
         defaultOptions
         loadOptions={loadOptions}
         value={selectedOption}
@@ -96,6 +100,8 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
         noOptionsMessage="No variables found"
         isClearable
         onCreateOption={handleCreateOption}
+        onInputChange={handleInputChange} 
+
       />
     </InlineField>
   );

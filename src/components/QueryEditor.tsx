@@ -22,35 +22,17 @@ export function QueryEditor({ datasource ,query, onChange, onRunQuery }: Props) 
   const [variables1, setVariables] = useState<VariableType[]>([]);
 
   useEffect(() => {
-    ConnectionApiGet();
+    ConnectionApiGet(true,"");
   }, []);
 
-  // Fetch variables when selectedConnId changes
-useEffect(() => {
-  if (selectedConnId !== null) {
-    VariablesApiGet(selectedConnId);
-  }else
-  {
-    VariablesApiGet(0);
-  }
+  useEffect(() => {
+    if (selectedConnId !== null) {
+      VariablesApiGet(selectedConnId,false,"");
+    }else
+    {
+      VariablesApiGet(0,true,"");
+    }
 }, [selectedConnId]);
-
-  useEffect(() => {
-    if (variables1.length > 0) {
-      variables1.forEach((variable, index) => {
-     //   console.info(`Variable from state ${index + 1}:`, variable);
-      });
-    }
-  }, [variables1]);
-
-
-  useEffect(() => {
-    if (connections1.length > 0) {
-      connections1.forEach((connection, index) => {
-      //  console.info(`Connection from state ${index + 1}:`, connection);
-      });
-    }
-  }, [connections1]);
 
 
   const onVariableChange = (value: any) => {
@@ -58,19 +40,39 @@ useEffect(() => {
     onRunQuery();
   };
 
-  // onVariableChange("12345");
 
   const onConnectionChange = (value: any) => {
     setSelectedConnId(value);
 
   };
 
-  async function VariablesApiGet(connId: number) { 
+  const onTextConnectionChange = (value: string) => {
+    const skipFilter = value === ""; 
+  
+    ConnectionApiGet(skipFilter, value);
+  
+    if (skipFilter) {
+      setSelectedConnId(null); 
+    }
+  };
+
+  const onTextCVariableChange = (value: string) => {
+    const connId = selectedConnId ?? 0;      // use 0 if selectedConnId is null
+    const skipFilter = selectedConnId === null; // skip if no connection selected
+  
+    VariablesApiGet(connId, skipFilter, value);
+  };
+
+
+  async function VariablesApiGet(connId: number,skipConnectionFilter : boolean, textChange : string) { 
     try { 
       const uid = datasource.uid; 
-      const endpointUrl = `/api/datasources/uid/${uid}/resources/Variables?connId=${connId}`; 
+      const endpointUrl = `/api/datasources/uid/${uid}/resources/Variables` +
+      `?connId=${connId}` +
+      `&skipFilterConns=${encodeURIComponent(String(skipConnectionFilter))}` +
+      `&likeParam=${encodeURIComponent(textChange)}` +
+      `&page=0&itemsPerPage=20`;
   
-    //  console.info("Full endpoint URL:", endpointUrl); 
   
       const fetch = await getBackendSrv().fetch<VariableType[]>({ 
 
@@ -82,32 +84,24 @@ useEffect(() => {
 
       setVariables(response.data)
 
-      variables1.forEach((variable, index) => {
-      //  console.info(`New Variable 1 ${index + 1}:`, variable);
-      });
-
-
-      console.info('Variables response:', response.data); 
- // Loop through each variable and log
-      response.data.forEach((variable, index) => {
-          //  console.info(`Variable ${index + 1}:`, variable);
-          });
-
+    
   
-      return response.data; // return the actual data
+      return response.data; 
     } catch (error) { 
-     // console.error('Error calling custom endpoint:', error); 
       throw error; 
     } 
   }
   
 
-  async function ConnectionApiGet() { 
+  async function ConnectionApiGet(skipConnectionFilter : boolean, textChange : string) { 
     try { 
       const uid = datasource.uid; 
-      const endpointUrl = `/api/datasources/uid/${uid}/resources/Connections`; 
+      
+      const endpointUrl = `/api/datasources/uid/${uid}/resources/Connections` +
+      `?skipConnectionFilter=${encodeURIComponent(String(skipConnectionFilter))}` +
+      `&searchText=${encodeURIComponent(textChange)}` +
+      `&pageIndex=0&pageSize=10`;
   
-    //  console.info("Full endpoint URL:", endpointUrl); 
   
       const fetch = await getBackendSrv().fetch<ConnectionType[]>({ 
 
@@ -119,29 +113,13 @@ useEffect(() => {
 
       setConnections(response.data)
 
-      connections1.forEach((connection, index) => {
-      //  console.info(`New Connection 1 ${index + 1}:`, connection);
-      });
-
-
-    //  console.info('Connection response:', response.data); 
- // Loop through each variable and log
-      response.data.forEach((connection, index) => {
-     //       console.info(`Connection ${index + 1}:`, connection);
-          });
-
+    
   
-      return response.data; // return the actual data
+      return response.data; 
     } catch (error) { 
-   //   console.error('Error calling custom endpoint:', error); 
       throw error; 
     } 
   }
-
-
-
-
-   
 
 
   return (
@@ -153,6 +131,7 @@ useEffect(() => {
         <ConnectionSelector
           value={''} // default selected
           onChange={(value) => onConnectionChange(value)}
+          onTextChange={(value) => onTextConnectionChange(value)}
           connections={connections1}
           onRunQuery={onRunQuery}
         />
@@ -166,6 +145,7 @@ useEffect(() => {
         <VariableSelector
           value={''} // default selected
           onChange={(value) => onVariableChange(value)}
+          onTextChange={(value) => onTextCVariableChange(value)}
           variables={variables1}
           onRunQuery={onRunQuery}
         />
