@@ -8,9 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"sort"
-	"strings"
 	"time"
-
+	"strings"
 	"github.com/grafana/grafana-plugin-sdk-go/backend"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/instancemgmt"
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
@@ -90,135 +89,137 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 
 func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery, req *backend.QueryDataRequest) backend.DataResponse {
 	var response backend.DataResponse
-
 	var qm queryModel
+
+	log.DefaultLogger.Info("PLUGIN QUERY -- START ----------------------------")
+
+	log.DefaultLogger.Info("PLUGIN QUERY -- Raw query JSON", "json", string(query.JSON))
 
 	err := json.Unmarshal(query.JSON, &qm)
 	if err != nil {
-		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err.Error()))
+		log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal failed", "error", err)
+		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err))
 	}
 
-	log.DefaultLogger.Info("Frontend passed queryText:", "queryText", qm.QueryText)
+	log.DefaultLogger.Info("PLUGIN QUERY -- Parsed QueryModel", "queryText", qm.QueryText)
 
 	config, _ := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
-
-	// TimeRange directly from Grafana FE
+	log.DefaultLogger.Info("PLUGIN QUERY -- Loaded Plugin Settings", "baseUrl", config.BaseUrl)
 
 	from := query.TimeRange.From.UTC().Format("2006-01-02T15:04:05")
 	to := query.TimeRange.To.UTC().Format("2006-01-02T15:04:05")
+
+	varIds := []string{qm.QueryText}
+
+	joinedVarIds := strings.Join(varIds, ",")
+
 
 	url := fmt.Sprintf(
 		"%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
 		config.BaseUrl,
 		url.QueryEscape(from),
 		url.QueryEscape(to),
-		url.QueryEscape(qm.QueryText),
+		url.QueryEscape(joinedVarIds),
 	)
+	log.DefaultLogger.Info("PLUGIN QUERY -- Final API URL", "url", url)
 
 	client := &http.Client{}
 	req2, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		log.DefaultLogger.Error("Failed to create request:", err)
+		log.DefaultLogger.Error("PLUGIN QUERY -- Failed to create HTTP request", "error", err)
 		return backend.ErrDataResponse(backend.StatusInternal, "Failed to create API request")
 	}
 
-	log.DefaultLogger.Info("Request URL:", url)
-
 	req2.Header.Set("Authorization", config.Secrets.ApiKey)
 	req2.Header.Set("Accept", "application/json")
+	log.DefaultLogger.Info("PLUGIN QUERY -- HTTP headers set")
 
 	resp, err := client.Do(req2)
 	if err != nil {
-		log.DefaultLogger.Error("HTTP request failed:", err)
+		log.DefaultLogger.Error("PLUGIN QUERY -- HTTP request failed", "error", err)
 		return backend.ErrDataResponse(backend.StatusBadGateway, "API request failed")
 	}
 	defer resp.Body.Close()
 
+	log.DefaultLogger.Info("PLUGIN QUERY -- HTTP response received", "statusCode", resp.StatusCode)
+
 	body, readErr := ioutil.ReadAll(resp.Body)
 	if readErr != nil {
-		log.DefaultLogger.Error("Failed to read response body:", readErr)
+		log.DefaultLogger.Error("PLUGIN QUERY -- Failed to read response body", "error", readErr)
 		return backend.ErrDataResponse(backend.StatusInternal, "Failed to read API response")
 	}
 
+	log.DefaultLogger.Info("PLUGIN QUERY -- Raw API response (first 300 chars)", "body", string(body)[:min(len(body), 300)])
+
 	if resp.StatusCode != http.StatusOK {
-		if len(body) == 0 {
-			return backend.ErrDataResponse(backend.StatusBadRequest,
-				fmt.Sprintf("API returned status %d with empty response body", resp.StatusCode))
-		}
-
-		contentType := resp.Header.Get("Content-Type")
-		if !strings.Contains(contentType, "application/json") {
-			return backend.ErrDataResponse(backend.StatusBadRequest,
-				fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
-		}
-
-	
-
-		if jsonErr := json.Unmarshal(body, &errResp); jsonErr != nil {
-			contentType := resp.Header.Get("Content-Type")
-			log.DefaultLogger.Error("Failed to parse error response as JSON:", jsonErr)
-			log.DefaultLogger.Error("Content-Type:", contentType)
-			return backend.ErrDataResponse(backend.StatusBadRequest,
-				fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
-		}
-
-		var errorMessages []string
-		for field, messages := range errResp.Errors {
-			for _, msg := range messages {
-				errorMessages = append(errorMessages, fmt.Sprintf("%s: %s", field, msg))
-			}
-		}
-
-		if len(errorMessages) > 0 {
-			return backend.ErrDataResponse(backend.StatusBadRequest,
-				fmt.Sprintf("Validation error: %s", strings.Join(errorMessages, "; ")))
-		}
-
-		if errResp.Title != "" {
-			return backend.ErrDataResponse(backend.StatusBadRequest, errResp.Title)
-		}
-
-		return backend.ErrDataResponse(backend.StatusBadRequest,
-			fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+		log.DefaultLogger.Error("PLUGIN QUERY -- API returned non-OK status", "status", resp.StatusCode)
+		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
 	}
 
 	var raw []rawLiveValue
 	if err := json.Unmarshal(body, &raw); err != nil {
-		log.DefaultLogger.Error("JSON unmarshal error:", err)
-		log.DefaultLogger.Error("Raw response:", string(body))
-		panic(err)
+		log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal response failed", "error", err)
+		log.DefaultLogger.Error("PLUGIN QUERY -- Raw response body", "body", string(body))
+		return backend.ErrDataResponse(backend.StatusInternal, "Failed to parse API response JSON")
 	}
 
-	var livevalue []LiveValueTimeseries
+	log.DefaultLogger.Info("PLUGIN QUERY -- Parsed records", "count", len(raw))
+
+	grouped := make(map[int][]LiveValueTimeseries)
 	for _, r := range raw {
-		t, err := time.Parse("2006-01-02T15:04:05", r.Timestamp) // matches "2025-06-27T14:08:30"
+		t, err := time.Parse("2006-01-02T15:04:05", r.Timestamp)
 		if err != nil {
-			log.DefaultLogger.Error("Time parse error:", err)
+			log.DefaultLogger.Error("PLUGIN QUERY -- Time parse error", "timestamp", r.Timestamp, "error", err)
 			continue
 		}
-		livevalue = append(livevalue, LiveValueTimeseries{
+		grouped[r.VariableId] = append(grouped[r.VariableId], LiveValueTimeseries{
 			Timestamp: t,
 			Value:     r.Value,
 		})
 	}
-	log.DefaultLogger.Info("LiveValues :", "queryText", qm.QueryText)
 
-	frame := data.NewFrame("response")
+		for varId, values := range grouped {
+			log.DefaultLogger.Info(
+				"PLUGIN QUERY -- Grouped values",
+				"VariableId", varId,
+				"Count", len(values),
+			)
 
-	times3 := make([]time.Time, len(livevalue))
-	values3 := make([]float64, len(livevalue))
+			maxSamples := 3
+			for i, v := range values {
+				if i >= maxSamples {
+					log.DefaultLogger.Info("PLUGIN QUERY -- Skipping remaining values for VarId", "VariableId", varId)
+					break
+				}
+				log.DefaultLogger.Info(
+					"PLUGIN QUERY -- Sample value",
+					"VariableId", varId,
+					"Timestamp", v.Timestamp.Format("2006-01-02 15:04:05"),
+					"Value", v.Value,
+				)
+			}
+		}
 
-	for i, ts := range livevalue {
-		times3[i] = ts.Timestamp
-		values3[i] = ts.Value
-	}
+		for varId, values := range grouped {
+			frameName := fmt.Sprintf("VariableId_%d", varId)
+			frame := data.NewFrame(frameName)
 
-	frame.Fields = append(frame.Fields,
-		data.NewField("time", nil, times3),
-		data.NewField("values", nil, values3),
-	)
+			times := make([]time.Time, len(values))
+			vals := make([]float64, len(values))
+			for i, v := range values {
+				times[i] = v.Timestamp
+				vals[i] = v.Value
+			}
 
-	response.Frames = append(response.Frames, frame)
+			frame.Fields = append(frame.Fields,
+				data.NewField("time", nil, times),
+				data.NewField("value", nil, vals),
+			)
+
+			response.Frames = append(response.Frames, frame)
+		}
+
+	log.DefaultLogger.Info("PLUGIN QUERY -- END --------------------------------")
 
 	return response
 }

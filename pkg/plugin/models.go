@@ -23,8 +23,10 @@ type CustomTime struct {
 }
 
 type rawLiveValue struct {
-	Timestamp string  `json:"timestamp"`
-	Value     float64 `json:"Value"`
+	VariableId int     `json:"VariableId"`
+    Value      float64 `json:"Value"`
+    Timestamp  string  `json:"timestamp"`
+    Quality    int     `json:"quality"`
 }
 
 type LiveValueTimeseries struct {

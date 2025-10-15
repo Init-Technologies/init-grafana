@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useCallback } from 'react';
 import { AsyncSelect, InlineField } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
 
@@ -10,7 +10,7 @@ export interface VariableType {
 interface VariableSelectorProps {
   value?: string | null;
   onChange: (value: number | string) => void;
-  onTextChange: (value: string) => void; 
+  onTextChange: (value: string) => void;
   onRunQuery?: () => void;
   variables?: VariableType[];
   width?: number;
@@ -32,66 +32,84 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   allowCustomValue = true,
   placeholder = 'Select or type a value...',
 }) => {
+  const [inputValue, setInputValue] = useState('');
+
   const variableOptions = useMemo(() => {
-    return variables.map(variable => ({
+    return variables.map((variable) => ({
       label: variable.variableName,
       value: variable.id.toString(),
-      original: variable
+      original: variable,
     }));
-  }, [variables]); 
+  }, [variables]);
 
   const selectedOption = useMemo(() => {
-    return variableOptions.find(opt => opt.value === value?.toString()) || 
-      (value && allowCustomValue ? { label: value.toString(), value: value.toString() } : null);
+    return (
+      variableOptions.find((opt) => opt.value === value?.toString()) ||
+      (value && allowCustomValue
+        ? { label: value.toString(), value: value.toString() }
+        : null)
+    );
   }, [variableOptions, value, allowCustomValue]);
 
-  const loadOptions = React.useCallback(async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
-    
-    if (!inputValue) {
-      return variableOptions;
-    }
-    
-    const filtered = variableOptions.filter(option =>
-      option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
-      option.value.toLowerCase().includes(inputValue.toLowerCase())
-    );
-    
-    return filtered;
-  }, [variableOptions]); 
+  const loadOptions = useCallback(
+    async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
+      if (!inputValue) {
+        return variableOptions;
+      }
 
-  const handleChange = React.useCallback((selected: SelectableValue<string>) => {
-    
-    if (selected?.value) {
-      onChange(selected.value);
-    } else {
-      onChange('');
-      onTextChange("");
+      const filtered = variableOptions.filter(
+        (option) =>
+          option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
+          option.value.toLowerCase().includes(inputValue.toLowerCase())
+      );
 
-    }
-    onRunQuery();
-  }, [onChange, onRunQuery]);
+      return filtered;
+    },
+    [variableOptions]
+  );
 
-  const handleCreateOption = React.useCallback((newValue: string) => {
-    onChange(newValue);
-    onRunQuery();
-  }, [onChange, onRunQuery]);
+  const handleChange = useCallback(
+    (selected: SelectableValue<string>) => {
+      if (selected?.value) {
+        onChange(selected.value);
+      } else {
+        onChange('');
+      }
+      setInputValue(''); // clear input only on select
+      onRunQuery();
+    },
+    [onChange, onRunQuery]
+  );
 
-  const handleInputChange = (inputValue: string, { action }: { action: string }) => {
-    if (action === 'input-change') {
-      onTextChange(inputValue);
-    }
-    return inputValue;
-  };
-  
+  const handleCreateOption = useCallback(
+    (newValue: string) => {
+      onChange(newValue);
+      setInputValue(newValue);
+      onRunQuery();
+    },
+    [onChange, onRunQuery]
+  );
 
+  const handleInputChange = useCallback(
+    (newInputValue: string, { action }: { action: string }) => {
+      if (action === 'input-change') {
+        setInputValue(newInputValue);
+        onTextChange(newInputValue);
+      }
+      return newInputValue;
+    },
+    [onTextChange]
+  );
 
   return (
     <InlineField label={label} labelWidth={16} tooltip={tooltip}>
       <AsyncSelect
-        key={variableOptions.length} 
         defaultOptions
+        cacheOptions
         loadOptions={loadOptions}
         value={selectedOption}
+        inputValue={inputValue}
+        onInputChange={handleInputChange}
         onChange={handleChange}
         allowCustomValue={allowCustomValue}
         placeholder={placeholder}
@@ -100,8 +118,6 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
         noOptionsMessage="No variables found"
         isClearable
         onCreateOption={handleCreateOption}
-        onInputChange={handleInputChange} 
-
       />
     </InlineField>
   );
