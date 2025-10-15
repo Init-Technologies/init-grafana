@@ -275,6 +275,10 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 			values.Set("likeParam", "")
 		}
 
+		if values.Get("skipPagination") == "" {
+			values.Set("skipPagination", "true")
+		}
+
 		baseURL, _ := url.Parse(config.BaseUrl + "/api/public/variables-dto")
 		baseURL.RawQuery = values.Encode()
 
