@@ -15,8 +15,9 @@ const [connections, setConnections] = useState<ConnectionType[]>(query.connectio
 const [selectedConnId, setSelectedConnId] = useState<number | null>(query.connectionId ?? null);
 const [selectedConnText, setSelectedConnText] = useState<string>(query.connectionText ?? '');
 
-  const [selectedVariable, setSelectedVariable] = useState<string>(''); 
-  const [variables, setVariables] = useState<VariableType[]>([]);
+  const [selectedVariableIds, setSelectedVariableIds] = useState<number[] | null>(query.variableIds ?? []);
+  const [selectedVariableNames, setSelectedVariableNames] = useState<string[] | null>(query.variableNames ?? []);
+  const [variables, setVariables] = useState<VariableType[]>(query.variables ?? []);
 
 
  const [type, setType] = useState<'Alarm' | 'Event' | 'Live'>(
@@ -48,7 +49,9 @@ useEffect(() => {
       pageSize,
     });
 
+   if ((selectedVariableIds && selectedVariableIds.length > 0)) {
     onRunQuery();
+}
   }, [type, prefix, suffix, pageIndex, pageSize]);
 
   useEffect(() => {
@@ -60,7 +63,7 @@ useEffect(() => {
 
   useEffect(() => {
 
-    if(selectedConnId === null && selectedVariable == '')
+    if(selectedConnId === null && selectedVariableIds === null)
     {
 
       VariablesApiGet(-1, true, '', true);
@@ -75,20 +78,43 @@ useEffect(() => {
       }
     }
 
-  }, [selectedConnId,selectedVariable]);
+  }, [selectedConnId,selectedVariableIds]);
   useEffect(() => {
     console.log('Selected Connection ID:', selectedConnId);
-    console.log('Selected Variable:', selectedVariable);
     console.log('Selected Connection Text:', selectedConnText);
+    console.log('Selected Variable Ids:', selectedVariableIds);
 
-  }, [selectedConnId, selectedVariable,selectedConnText]);
+
+    console.log('Selected Variable Names:', selectedVariableNames);
 
 
-  const onVariableChange = (value: any) => {
-    setSelectedVariable(value); // ✅ update state
-    onChange({ ...query, queryText: value });
+  }, [selectedConnId, selectedVariableIds,selectedConnText]);
+
+
+  useEffect(() => {
+  if ( (selectedVariableIds && selectedVariableIds.length > 0)) {
+    console.log('Running query with variable IDs:', selectedVariableIds);
     onRunQuery();
-  };
+  }
+}, [selectedVariableIds]); 
+
+  const onVariableChange = (selectedVariables: VariableType[]) => {
+  const ids = selectedVariables.map(v => v.id);
+  const names = selectedVariables.map(v => v.variableName);
+
+  console.log('====> Var Changes Selected Variable Ids:', selectedVariableIds);
+
+  
+  setSelectedVariableIds(ids.length > 0 ? ids : null);
+  setSelectedVariableNames(names.length > 0 ? names : null);
+  
+  onChange({
+    ...query,
+    variableIds: ids.length > 0 ? ids : [],
+    variableNames: names.length > 0 ? names : [],
+    variables: selectedVariables,
+  });
+};
 
  const onConnectionChange = (id: number | null, name?: string) => {
   setSelectedConnId(id);
@@ -98,7 +124,6 @@ useEffect(() => {
     connectionId: id,
     connectionText: name ?? '',
   });
-  onRunQuery();
 };
 
 const onTextConnectionChange = (value: string) => {
@@ -183,7 +208,6 @@ const onTextConnectionChange = (value: string) => {
         onChange={onConnectionChange}
         onTextChange={onTextConnectionChange}
         connections={connections}
-        onRunQuery={onRunQuery}
       />
         </div>
       ) : (
@@ -193,12 +217,11 @@ const onTextConnectionChange = (value: string) => {
       {variables.length > 0 ? (
         <div className="gf-form-group">
           <VariableSelector
-            value={''}
+            value={selectedVariableIds}
             onChange={onVariableChange}
             onTextChange={onTextVariableChange}
             variables={variables}
-            onRunQuery={onRunQuery}
-          />
+  />
         </div>
       ) : (
         <div>Loading Variables...</div>
@@ -246,7 +269,7 @@ const onTextConnectionChange = (value: string) => {
     onClick={() => {
       const newIndex = pageIndex - 1;
       setPageIndex(newIndex);
-      onRunQuery();
+
     }}
   />
 
@@ -259,7 +282,7 @@ const onTextConnectionChange = (value: string) => {
       onChange={(e) => {
         const newPage = Number(e.currentTarget.value) - 1;
         setPageIndex(newPage >= 0 ? newPage : 0);
-        onRunQuery();
+
       }}
       width={12}
     />
@@ -272,7 +295,7 @@ const onTextConnectionChange = (value: string) => {
     onClick={() => {
       const newIndex = pageIndex + 1;
       setPageIndex(newIndex);
-      onRunQuery();
+
     }}
   />
 
@@ -289,7 +312,7 @@ const onTextConnectionChange = (value: string) => {
       onChange={(v) => {
         setPageSize(v.value!);
         setPageIndex(0); 
-        onRunQuery();
+
       }}
       width={12}
     />

@@ -59,6 +59,9 @@ type queryModel struct {
 
 	PageIndex      int     `json:"pageIndex"`
 	PageSize       int     `json:"pageSize"`
+
+	VariableIds     []int    `json:"variableIds"`
+	VariableNames   []string  `json:"variableNames"`
 }
 
 

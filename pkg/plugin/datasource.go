@@ -115,9 +115,16 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	// qm.IsEvent = true;
 
 
-	// varIds := []string{"1,2,3,4,5,6,7,8,9,10"}
+    stringSlice := make([]string, len(qm.VariableIds))
+    for i, n := range qm.VariableIds {
+        stringSlice[i] = strconv.Itoa(n)
+    }
 
-	varIds := []string{qm.QueryText}
+    varIdsString := strings.Join(stringSlice, ",")
+
+
+
+	varIds := []string{varIdsString}
 	joinedVarIds := strings.Join(varIds, ",")
 	pageIndex := qm.PageIndex
 	pageSize := qm.PageSize
@@ -215,7 +222,14 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 	if qm.IsEvent {
 		urlStr = fmt.Sprintf("%s/api/public/events?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&suffix=%s&pageIndex=%s&pageSize=%s",
-			config.BaseUrl, url.QueryEscape(from), url.QueryEscape(to), url.QueryEscape(joinedVarIds), url.QueryEscape(qm.Prefix),url.QueryEscape(qm.Suffix),url.QueryEscape(strconv.Itoa(pageIndex)), url.QueryEscape(strconv.Itoa(pageSize)))
+			config.BaseUrl, 
+			url.QueryEscape(from), 
+			url.QueryEscape(to), 
+			url.QueryEscape(joinedVarIds), 
+			url.QueryEscape(qm.Prefix),
+			url.QueryEscape(qm.Suffix),
+			url.QueryEscape(strconv.Itoa(pageIndex)), 
+			url.QueryEscape(strconv.Itoa(pageSize)))
 		log.DefaultLogger.Info("PLUGIN QUERY -- EVENT URL", "url", urlStr)
 		
 		client := &http.Client{}

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { AsyncSelect, InlineField } from '@grafana/ui';
+import { AsyncSelect, InlineField, MultiSelect, Badge, Stack, Button } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
 
 export interface VariableType {
@@ -8,8 +8,8 @@ export interface VariableType {
 }
 
 interface VariableSelectorProps {
-  value?: string | null;
-  onChange: (value: number | string) => void;
+  value?: number[] | null;
+  onChange: (variables: VariableType[]) => void;
   onTextChange: (value: string) => void;
   onRunQuery?: () => void;
   variables?: VariableType[];
@@ -22,20 +22,32 @@ interface VariableSelectorProps {
 }
 
 export const VariableSelector: React.FC<VariableSelectorProps> = ({
-  value,
+  value = [],
   onChange,
   onTextChange,
   onRunQuery = () => {},
   variables = [],
   width = 40,
-  label = 'Variable',
-  tooltip = 'Select a variable or enter custom value',
+  label = 'Variables',
+  tooltip = 'Select variables or enter custom values',
   allowCustomValue = true,
-  placeholder = 'Select or type a value...',
-  debounceMs = 1500, // default debounce delay
+  placeholder = 'Select or type values...',
+  debounceMs = 1500,
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [selectedVariables, setSelectedVariables] = useState<VariableType[]>([]);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (value && value.length > 0) {
+      const selected = variables.filter(variable => 
+        value.includes(variable.id)
+      );
+      setSelectedVariables(selected);
+    } else {
+      setSelectedVariables([]);
+    }
+  }, [value, variables]);
 
   const variableOptions = useMemo(
     () =>
@@ -52,14 +64,11 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
     setSelectKey((prev) => prev + 1);
   }, [variables]);
 
-  const selectedOption = useMemo(() => {
-    return (
-      variableOptions.find((opt) => opt.value === value?.toString()) ||
-      (value && allowCustomValue
-        ? { label: value.toString(), value: value.toString() }
-        : null)
+  const selectedOptions = useMemo(() => {
+    return variableOptions.filter(opt => 
+      value?.includes(Number(opt.value)) || false
     );
-  }, [variableOptions, value, allowCustomValue]);
+  }, [variableOptions, value]);
 
   const loadOptions = useCallback(
     async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
@@ -74,15 +83,20 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   );
 
   const handleChange = useCallback(
-    (selected: SelectableValue<string>) => {
-      onChange(selected?.value ?? '');
+    (selected: Array<SelectableValue<string>>) => {
+      const selectedVars: VariableType[] = selected.map(option => ({
+        id: Number(option.value),
+        variableName: option.label!!
+      }));
+      
+      setSelectedVariables(selectedVars);
+      onChange(selectedVars);
       setInputValue('');
       onRunQuery();
     },
     [onChange, onRunQuery]
   );
 
-  
   const handleInputChange = useCallback(
     (newInputValue: string, { action }: { action: string }) => {
       if (action === 'input-change') {
@@ -98,24 +112,28 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
     [onTextChange, debounceMs]
   );
 
+
   return (
-    <InlineField label={label} labelWidth={16} tooltip={tooltip}>
-      <AsyncSelect
-        key={selectKey}
-        defaultOptions={variableOptions}
-        cacheOptions={false}
-        loadOptions={loadOptions}
-        value={selectedOption}
-        inputValue={inputValue}
-        onInputChange={handleInputChange}
-        onChange={handleChange}
-        allowCustomValue={allowCustomValue}
-        placeholder={placeholder}
-        width={width}
-        loadingMessage="Loading variables..."
-        noOptionsMessage="No variables found"
-        isClearable
-      />
-    </InlineField>
+    <Stack direction="column" gap={1}>
+      <InlineField label={label} labelWidth={16} tooltip={tooltip}>
+        <MultiSelect
+          key={selectKey}
+          defaultOptions={variableOptions}
+          cacheOptions={false}
+          loadOptions={loadOptions}
+          value={selectedOptions}
+          inputValue={inputValue}
+          onInputChange={handleInputChange}
+          onChange={handleChange}
+          allowCustomValue={allowCustomValue}
+          placeholder={placeholder}
+          width={width}
+          loadingMessage="Loading variables..."
+          noOptionsMessage="No variables found"
+          isClearable
+        />
+      </InlineField>
+
+    </Stack>
   );
 };
