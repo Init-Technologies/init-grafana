@@ -11,9 +11,11 @@ import { ConnectionSelector, ConnectionType } from './ConnectionSelector';
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>;
 
 export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) {
-  const [selectedConnId, setSelectedConnId] = useState<number | null>(null);
+const [connections, setConnections] = useState<ConnectionType[]>(query.connections?? []);
+const [selectedConnId, setSelectedConnId] = useState<number | null>(query.connectionId ?? null);
+const [selectedConnText, setSelectedConnText] = useState<string>(query.connectionText ?? '');
+
   const [selectedVariable, setSelectedVariable] = useState<string>(''); 
-  const [connections, setConnections] = useState<ConnectionType[]>([]);
   const [variables, setVariables] = useState<VariableType[]>([]);
 
 
@@ -25,7 +27,14 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
   const [pageIndex, setPageIndex] = useState(query.pageIndex ?? 0);
   const [pageSize, setPageSize] = useState(query.pageSize ?? 20);
 
-
+useEffect(() => {
+  onChange({
+    ...query,
+    connections,
+    connectionId: selectedConnId,
+    connectionText: selectedConnText,
+  });
+}, [connections, selectedConnId, selectedConnText]);
 
   useEffect(() => {
     onChange({
@@ -42,14 +51,21 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     onRunQuery();
   }, [type, prefix, suffix, pageIndex, pageSize]);
 
+  useEffect(() => {
+    if (connections.length === 0) {
+      ConnectionApiGet(true, '');
+    }
+    if (variables.length === 0) {
+          VariablesApiGet(-1, true, '', true);
+    }
 
+  }, []);
 
   useEffect(() => {
 
     if(selectedConnId === null && selectedVariable == '')
     {
 
-      ConnectionApiGet(true, '');
       VariablesApiGet(-1, true, '', true);
     }
     else
@@ -76,6 +92,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
 
  const onConnectionChange = (id: number | null, name?: string) => {
   setSelectedConnId(id);
+  setSelectedConnText(name?? '')
   onChange({
     ...query,
     connectionId: id,
@@ -84,13 +101,16 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
   onRunQuery();
 };
 
-  const onTextConnectionChange = (value: string) => {
-    const skipFilter = value === '';
-    ConnectionApiGet(skipFilter, value);
-    if (skipFilter) {
-      setSelectedConnId(null);
-    }
-  };
+const onTextConnectionChange = (value: string) => {
+  const skipFilter = value === '';
+  ConnectionApiGet(skipFilter, value).then(setConnections);
+
+  if (skipFilter) {
+    setSelectedConnId(null);
+    setSelectedConnText('');
+    onChange({ ...query, connectionId: null, connectionText: '' });
+  }
+};
 
   const onTextVariableChange = (value: string) => {
     const connId = selectedConnId ?? 0;
