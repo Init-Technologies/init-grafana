@@ -1,20 +1,18 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AsyncSelect, InlineField } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
-
 
 export interface ConnectionType {
   id: number;
   name: string;
 }
 
-
 interface ConnectionSelectorProps {
-  value?:  string | null; 
-  onChange: (value: number | string) => void; 
+  value?: number | string | null; 
+  onChange: (id: number | null, name?: string) => void;
   onTextChange: (value: string) => void;
   onRunQuery?: () => void;
-  connections?: ConnectionType[]; 
+  connections?: ConnectionType[];
   width?: number;
   label?: string;
   tooltip?: string;
@@ -34,52 +32,68 @@ export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
   allowCustomValue = true,
   placeholder = 'Select or type a value...',
 }) => {
-  const connectionOptions = connections.map(connection => ({
+  const [selectedOption, setSelectedOption] = useState<SelectableValue<string> | null>(null);
+
+  const connectionOptions = connections.map((connection) => ({
     label: connection.name,
-    value: connection.id.toString(), 
-    original: connection 
+    value: connection.id.toString(),
+    original: connection,
   }));
 
-  const selectedOption = connectionOptions.find(opt => opt.value === value?.toString()) || 
-    (value && allowCustomValue ? { label: value.toString(), value: value.toString() } : null);
+  // 🧠 Keep UI in sync with saved value from MyQuery
+  useEffect(() => {
+    if (!value) {
+      setSelectedOption(null);
+      return;
+    }
+
+    const matched = connectionOptions.find((opt) => opt.value === value.toString());
+    if (matched) {
+      setSelectedOption(matched);
+    } else if (typeof value === 'string' && allowCustomValue) {
+      setSelectedOption({ label: value, value });
+    }
+  }, [value, connections]);
 
   const loadOptions = async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       if (!inputValue) {
         resolve(connectionOptions);
         return;
       }
-      
-      const filtered = connectionOptions.filter(option =>
-        option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
-        option.value.toLowerCase().includes(inputValue.toLowerCase())
+
+      const filtered = connectionOptions.filter(
+        (option) =>
+          option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
+          option.value.toLowerCase().includes(inputValue.toLowerCase())
       );
       resolve(filtered);
     });
   };
 
-  const handleChange = (selected: SelectableValue<string>) => {
+  const handleChange = (selected: SelectableValue<string> | null) => {
     if (selected?.value) {
-      onChange(selected.value);
+      const conn = connections.find((c) => c.id.toString() === selected.value);
+      setSelectedOption(selected);
+      onChange(conn ? conn.id : Number(selected.value), conn?.name);
     } else {
-      onChange('');
-      onTextChange("");            
+      setSelectedOption(null);
+      onChange(null);
     }
     onRunQuery();
   };
 
   const handleInputChange = (inputValue: string, { action }: { action: string }) => {
     if (action === 'input-change') {
-      console.log('User typed:', inputValue);
       onTextChange(inputValue);
     }
     return inputValue;
   };
-  
-  
 
   const handleCreateOption = (newValue: string) => {
-    onChange(newValue);
+    const newOpt = { label: newValue, value: newValue };
+    setSelectedOption(newOpt);
+    onChange(null, newValue);
     onRunQuery();
   };
 
@@ -97,7 +111,7 @@ export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
         noOptionsMessage="No connections found"
         isClearable
         onCreateOption={handleCreateOption}
-        onInputChange={handleInputChange} 
+        onInputChange={handleInputChange}
       />
     </InlineField>
   );

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	 "io"        
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/init/in-view/pkg/models"
+    "strconv"
 )
 
 // UnmarshalJSON implements the json.Unmarshaler interface
@@ -92,16 +94,15 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	var qm queryModel
 
 	log.DefaultLogger.Info("PLUGIN QUERY -- START ----------------------------")
-
 	log.DefaultLogger.Info("PLUGIN QUERY -- Raw query JSON", "json", string(query.JSON))
 
-	err := json.Unmarshal(query.JSON, &qm)
-	if err != nil {
+	// Unmarshal query JSON first
+	if err := json.Unmarshal(query.JSON, &qm); err != nil {
 		log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal failed", "error", err)
 		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("json unmarshal: %v", err))
 	}
 
-	log.DefaultLogger.Info("PLUGIN QUERY -- Parsed QueryModel", "queryText", qm.QueryText)
+	log.DefaultLogger.Info("PLUGIN QUERY -- Parsed QueryModel", "queryText", qm.QueryText, "IsAlarm", qm.IsAlarm, "IsEvent", qm.IsEvent, "IsLive", qm.IsLive)
 
 	config, _ := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
 	log.DefaultLogger.Info("PLUGIN QUERY -- Loaded Plugin Settings", "baseUrl", config.BaseUrl)
@@ -109,94 +110,256 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	from := query.TimeRange.From.UTC().Format("2006-01-02T15:04:05")
 	to := query.TimeRange.To.UTC().Format("2006-01-02T15:04:05")
 
+	// qm.IsLive = false;
+	// qm.IsAlarm = false;
+	// qm.IsEvent = true;
+
+
+	// varIds := []string{"1,2,3,4,5,6,7,8,9,10"}
+
 	varIds := []string{qm.QueryText}
-
 	joinedVarIds := strings.Join(varIds, ",")
-
-
-	url := fmt.Sprintf(
-		"%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
+	pageIndex := qm.PageIndex
+	pageSize := qm.PageSize
+	if pageIndex <= 0 {
+		pageIndex = 0
+	}
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+	var urlStr string
+	if qm.IsAlarm {
+		urlStr = fmt.Sprintf("%s/api/public/alarms?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&pageIndex=%s&pageSize=%s",
 		config.BaseUrl,
 		url.QueryEscape(from),
 		url.QueryEscape(to),
 		url.QueryEscape(joinedVarIds),
-	)
-	log.DefaultLogger.Info("PLUGIN QUERY -- Final API URL", "url", url)
-
-	client := &http.Client{}
-	req2, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		log.DefaultLogger.Error("PLUGIN QUERY -- Failed to create HTTP request", "error", err)
-		return backend.ErrDataResponse(backend.StatusInternal, "Failed to create API request")
-	}
-
-	req2.Header.Set("Authorization", config.Secrets.ApiKey)
-	req2.Header.Set("Accept", "application/json")
-	log.DefaultLogger.Info("PLUGIN QUERY -- HTTP headers set")
-
-	resp, err := client.Do(req2)
-	if err != nil {
-		log.DefaultLogger.Error("PLUGIN QUERY -- HTTP request failed", "error", err)
-		return backend.ErrDataResponse(backend.StatusBadGateway, "API request failed")
-	}
-	defer resp.Body.Close()
-
-	log.DefaultLogger.Info("PLUGIN QUERY -- HTTP response received", "statusCode", resp.StatusCode)
-
-	body, readErr := ioutil.ReadAll(resp.Body)
-	if readErr != nil {
-		log.DefaultLogger.Error("PLUGIN QUERY -- Failed to read response body", "error", readErr)
-		return backend.ErrDataResponse(backend.StatusInternal, "Failed to read API response")
-	}
-
-	log.DefaultLogger.Info("PLUGIN QUERY -- Raw API response (first 300 chars)", "body", string(body)[:min(len(body), 300)])
-
-	if resp.StatusCode != http.StatusOK {
-		log.DefaultLogger.Error("PLUGIN QUERY -- API returned non-OK status", "status", resp.StatusCode)
-		return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
-	}
-
-	var raw []rawLiveValue
-	if err := json.Unmarshal(body, &raw); err != nil {
-		log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal response failed", "error", err)
-		log.DefaultLogger.Error("PLUGIN QUERY -- Raw response body", "body", string(body))
-		return backend.ErrDataResponse(backend.StatusInternal, "Failed to parse API response JSON")
-	}
-
-	log.DefaultLogger.Info("PLUGIN QUERY -- Parsed records", "count", len(raw))
-
-	grouped := make(map[int][]LiveValueTimeseries)
-	for _, r := range raw {
-		t, err := time.Parse("2006-01-02T15:04:05", r.Timestamp)
+		url.QueryEscape(qm.Prefix),                      
+		url.QueryEscape(strconv.Itoa(pageIndex)),
+		url.QueryEscape(strconv.Itoa(pageSize)),
+)
+		client := &http.Client{}
+		req2, err := http.NewRequest("GET", urlStr, nil)
 		if err != nil {
-			log.DefaultLogger.Error("PLUGIN QUERY -- Time parse error", "timestamp", r.Timestamp, "error", err)
-			continue
+			log.DefaultLogger.Error("PLUGIN QUERY -- Failed to create HTTP request", "error", err)
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to create API request")
 		}
-		grouped[r.VariableId] = append(grouped[r.VariableId], LiveValueTimeseries{
-			Timestamp: t,
-			Value:     r.Value,
-		})
+
+		req2.Header.Set("Authorization", config.Secrets.ApiKey)
+		req2.Header.Set("Accept", "application/json")
+		log.DefaultLogger.Info("PLUGIN QUERY -- HTTP headers set")
+
+		resp, err := client.Do(req2)
+		if err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- HTTP request failed", "error", err)
+			return backend.ErrDataResponse(backend.StatusBadGateway, "API request failed")
+		}
+		defer resp.Body.Close()
+
+		log.DefaultLogger.Info("PLUGIN QUERY -- HTTP response received", "statusCode", resp.StatusCode)
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- Failed to read response body", "error", readErr)
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to read API response")
+		}
+
+		limit := 300
+		if len(body) < 300 {
+			limit = len(body)
+		}
+		log.DefaultLogger.Info("PLUGIN QUERY -- Raw API response (first 300 chars)", "body", string(body[:limit]))
+
+		if resp.StatusCode != http.StatusOK {
+			log.DefaultLogger.Error("PLUGIN QUERY -- API returned non-OK status", "status", resp.StatusCode)
+			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+		}
+
+		var raw []AlarmLog
+		if err := json.Unmarshal(body, &raw); err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal response failed", "error", err)
+			log.DefaultLogger.Error("PLUGIN QUERY -- Raw response body", "body", string(body))
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to parse API response JSON")
+		}
+
+			frame := data.NewFrame(
+			"Alarms",
+			data.NewField("Description", nil, []string{}),
+			data.NewField("ActivationTime", nil, []time.Time{}),
+			data.NewField("TerminationTime", nil, []time.Time{}),
+		)
+
+		for _, alarm := range raw {
+			var activation, termination time.Time
+			var err error
+
+			if alarm.IwsAlarmActivationTime != "" {
+				activation, err = time.Parse("2006-01-02T15:04:05.999999", alarm.IwsAlarmActivationTime)
+				if err != nil {
+					log.DefaultLogger.Error("PLUGIN QUERY -- Time parse error", "field", "ActivationTime", "value", alarm.IwsAlarmActivationTime, "error", err)
+				}
+			}
+
+			if alarm.IwsAlarmTerminationTime != "" {
+				termination, err = time.Parse("2006-01-02T15:04:05.999999", alarm.IwsAlarmTerminationTime)
+				if err != nil {
+					log.DefaultLogger.Error("PLUGIN QUERY -- Time parse error", "field", "TerminationTime", "value", alarm.IwsAlarmTerminationTime, "error", err)
+				}
+			}
+
+			frame.AppendRow(alarm.IwsAlarmDescription, activation, termination)
+		}
+
+		response.Frames = append(response.Frames, frame)
 	}
+
+	if qm.IsEvent {
+		urlStr = fmt.Sprintf("%s/api/public/events?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&suffix=%s&pageIndex=%s&pageSize=%s",
+			config.BaseUrl, url.QueryEscape(from), url.QueryEscape(to), url.QueryEscape(joinedVarIds), url.QueryEscape(qm.Prefix),url.QueryEscape(qm.Suffix),url.QueryEscape(strconv.Itoa(pageIndex)), url.QueryEscape(strconv.Itoa(pageSize)))
+		log.DefaultLogger.Info("PLUGIN QUERY -- EVENT URL", "url", urlStr)
+		
+		client := &http.Client{}
+		req2, err := http.NewRequest("GET", urlStr, nil)
+		if err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- Failed to create HTTP request", "error", err)
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to create API request")
+		}
+
+		req2.Header.Set("Authorization", config.Secrets.ApiKey)
+		req2.Header.Set("Accept", "application/json")
+		log.DefaultLogger.Info("PLUGIN QUERY -- HTTP headers set")
+
+		resp, err := client.Do(req2)
+		if err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- HTTP request failed", "error", err)
+			return backend.ErrDataResponse(backend.StatusBadGateway, "API request failed")
+		}
+		defer resp.Body.Close()
+
+		log.DefaultLogger.Info("PLUGIN QUERY -- HTTP response received", "statusCode", resp.StatusCode)
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- Failed to read response body", "error", readErr)
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to read API response")
+		}
+
+		limit := 300
+		if len(body) < 300 {
+			limit = len(body)
+		}
+		log.DefaultLogger.Info("PLUGIN QUERY -- Raw API response (first 300 chars)", "body", string(body[:limit]))
+
+		if resp.StatusCode != http.StatusOK {
+			log.DefaultLogger.Error("PLUGIN QUERY -- API returned non-OK status", "status", resp.StatusCode)
+			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+		}
+
+		var raw []EventLog
+		if err := json.Unmarshal(body, &raw); err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal response failed", "error", err)
+			log.DefaultLogger.Error("PLUGIN QUERY -- Raw response body", "body", string(body))
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to parse API response JSON")
+		}
+
+			frame := data.NewFrame(
+			"Events",
+			data.NewField("Description", nil, []string{}),
+			data.NewField("ActivationTime", nil, []time.Time{}),
+		)
+
+		for _, event := range raw {
+			var IwsEventTimestamp time.Time
+			var err error
+
+			if event.IwsEventTimestamp != "" {
+				IwsEventTimestamp, err = time.Parse("2006-01-02T15:04:05.999999", event.IwsEventTimestamp)
+				if err != nil {
+					log.DefaultLogger.Error("PLUGIN QUERY -- Time parse error", "field", "IwsEventTimestamp", "value", event.IwsEventTimestamp, "error", err)
+				}
+			}
+
+		
+
+			frame.AppendRow(event.IwsEventDescription, IwsEventTimestamp)
+		}
+
+		response.Frames = append(response.Frames, frame)
+	}
+
+	if qm.IsLive {
+		urlStr = fmt.Sprintf("%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
+			config.BaseUrl, url.QueryEscape(from), url.QueryEscape(to), url.QueryEscape(joinedVarIds))
+		log.DefaultLogger.Info("PLUGIN QUERY -- Final API URL", "url", urlStr)
+
+		client := &http.Client{}
+		req2, err := http.NewRequest("GET", urlStr, nil)
+		if err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- Failed to create HTTP request", "error", err)
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to create API request")
+		}
+
+		req2.Header.Set("Authorization", config.Secrets.ApiKey)
+		req2.Header.Set("Accept", "application/json")
+		log.DefaultLogger.Info("PLUGIN QUERY -- HTTP headers set")
+
+		resp, err := client.Do(req2)
+		if err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- HTTP request failed", "error", err)
+			return backend.ErrDataResponse(backend.StatusBadGateway, "API request failed")
+		}
+		defer resp.Body.Close()
+
+		log.DefaultLogger.Info("PLUGIN QUERY -- HTTP response received", "statusCode", resp.StatusCode)
+
+		body, readErr := io.ReadAll(resp.Body)
+		if readErr != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- Failed to read response body", "error", readErr)
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to read API response")
+		}
+
+		limit := 300
+		if len(body) < 300 {
+			limit = len(body)
+		}
+		log.DefaultLogger.Info("PLUGIN QUERY -- Raw API response (first 300 chars)", "body", string(body[:limit]))
+
+		if resp.StatusCode != http.StatusOK {
+			log.DefaultLogger.Error("PLUGIN QUERY -- API returned non-OK status", "status", resp.StatusCode)
+			return backend.ErrDataResponse(backend.StatusBadRequest, fmt.Sprintf("API Error (%d): %s", resp.StatusCode, string(body)))
+		}
+
+		var raw []rawLiveValue
+		if err := json.Unmarshal(body, &raw); err != nil {
+			log.DefaultLogger.Error("PLUGIN QUERY -- JSON unmarshal response failed", "error", err)
+			log.DefaultLogger.Error("PLUGIN QUERY -- Raw response body", "body", string(body))
+			return backend.ErrDataResponse(backend.StatusInternal, "Failed to parse API response JSON")
+		}
+
+		log.DefaultLogger.Info("PLUGIN QUERY -- Parsed records", "count", len(raw))
+
+		grouped := make(map[int][]LiveValueTimeseries)
+		for _, r := range raw {
+			t, err := time.Parse("2006-01-02T15:04:05", r.Timestamp)
+			if err != nil {
+				log.DefaultLogger.Error("PLUGIN QUERY -- Time parse error", "timestamp", r.Timestamp, "error", err)
+				continue
+			}
+			grouped[r.VariableId] = append(grouped[r.VariableId], LiveValueTimeseries{
+				Timestamp: t,
+				Value:     r.Value,
+			})
+		}
 
 		for varId, values := range grouped {
-			log.DefaultLogger.Info(
-				"PLUGIN QUERY -- Grouped values",
-				"VariableId", varId,
-				"Count", len(values),
-			)
-
+			log.DefaultLogger.Info("PLUGIN QUERY -- Grouped values", "VariableId", varId, "Count", len(values))
 			maxSamples := 3
 			for i, v := range values {
 				if i >= maxSamples {
 					log.DefaultLogger.Info("PLUGIN QUERY -- Skipping remaining values for VarId", "VariableId", varId)
 					break
 				}
-				log.DefaultLogger.Info(
-					"PLUGIN QUERY -- Sample value",
-					"VariableId", varId,
-					"Timestamp", v.Timestamp.Format("2006-01-02 15:04:05"),
-					"Value", v.Value,
-				)
+				log.DefaultLogger.Info("PLUGIN QUERY -- Sample value", "VariableId", varId, "Timestamp", v.Timestamp.Format("2006-01-02 15:04:05"), "Value", v.Value)
 			}
 		}
 
@@ -218,12 +381,11 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 			response.Frames = append(response.Frames, frame)
 		}
+	}
 
 	log.DefaultLogger.Info("PLUGIN QUERY -- END --------------------------------")
-
 	return response
 }
-
 // CheckHealth handles health checks sent from Grafana to the plugin.
 // The main use case for these health checks is the test button on the
 // datasource configuration page which allows users to verify that

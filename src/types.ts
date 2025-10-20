@@ -9,6 +9,13 @@ export interface MyQuery extends DataQuery {
   connectionText?: string;
   variableId?: number | null;
   variableText?: string;
+  isLive? : boolean;
+  isAlarm? : boolean;
+  isEvent? : boolean;
+  prefix?: string;
+  suffix?: string;
+  pageIndex?: number;
+  pageSize?: number;
 }
 
 export const DEFAULT_QUERY: Partial<MyQuery> = {

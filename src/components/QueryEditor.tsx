@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Stack } from '@grafana/ui';
+import { Stack, InlineField, Input, Select,Button, RadioButtonGroup } from '@grafana/ui';
 import { QueryEditorProps } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { MyDataSourceOptions, MyQuery } from '../types';
@@ -12,9 +12,37 @@ type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>;
 
 export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) {
   const [selectedConnId, setSelectedConnId] = useState<number | null>(null);
-  const [selectedVariable, setSelectedVariable] = useState<string>(''); // ✅ new state
+  const [selectedVariable, setSelectedVariable] = useState<string>(''); 
   const [connections, setConnections] = useState<ConnectionType[]>([]);
   const [variables, setVariables] = useState<VariableType[]>([]);
+
+
+ const [type, setType] = useState<'Alarm' | 'Event' | 'Live'>(
+  query.isAlarm ? 'Alarm' : query.isEvent ? 'Event' : query.isLive ? 'Live' : 'Live'
+);
+  const [prefix, setPrefix] = useState(query.prefix ?? '');
+  const [suffix, setSuffix] = useState(query.suffix ?? '');
+  const [pageIndex, setPageIndex] = useState(query.pageIndex ?? 0);
+  const [pageSize, setPageSize] = useState(query.pageSize ?? 20);
+
+
+
+  useEffect(() => {
+    onChange({
+      ...query,
+      isAlarm: type === 'Alarm',
+      isEvent: type === 'Event',
+      isLive: type === 'Live',
+      prefix,
+      suffix,
+      pageIndex,
+      pageSize,
+    });
+
+    onRunQuery();
+  }, [type, prefix, suffix, pageIndex, pageSize]);
+
+
 
   useEffect(() => {
 
@@ -46,9 +74,15 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     onRunQuery();
   };
 
-  const onConnectionChange = (value: any) => {
-    setSelectedConnId(value);
-  };
+ const onConnectionChange = (id: number | null, name?: string) => {
+  setSelectedConnId(id);
+  onChange({
+    ...query,
+    connectionId: id,
+    connectionText: name ?? '',
+  });
+  onRunQuery();
+};
 
   const onTextConnectionChange = (value: string) => {
     const skipFilter = value === '';
@@ -124,13 +158,13 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     <Stack direction="column" gap={1}>
       {connections.length > 0 ? (
         <div className="gf-form-group">
-          <ConnectionSelector
-            value={''}
-            onChange={onConnectionChange}
-            onTextChange={onTextConnectionChange}
-            connections={connections}
-            onRunQuery={onRunQuery}
-          />
+         <ConnectionSelector
+        value={selectedConnId}
+        onChange={onConnectionChange}
+        onTextChange={onTextConnectionChange}
+        connections={connections}
+        onRunQuery={onRunQuery}
+      />
         </div>
       ) : (
         <div>Loading Connections...</div>
@@ -149,6 +183,100 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
       ) : (
         <div>Loading Variables...</div>
       )}
+
+        {/* Alarm/Event Type */}
+  <InlineField label="Type" labelWidth={14}>
+  <RadioButtonGroup<'Alarm' | 'Event' | 'Live'>
+      options={[
+        { label: 'Live', value: 'Live' },
+        { label: 'Alarm', value: 'Alarm' },
+        { label: 'Event', value: 'Event' },
+      ]}
+      value={type}
+      onChange={(v) => setType(v)}
+    />
+  </InlineField>
+
+  {/* Prefix */}
+  <InlineField label="Prefix" labelWidth={14}>
+    <Input
+      value={prefix}
+      onChange={(e) => setPrefix(e.currentTarget.value)}
+      placeholder="Enter prefix..."
+      width={25}
+    />
+  </InlineField>
+
+  {/* Suffix */}
+  <InlineField label="Suffix" labelWidth={14}>
+    <Input
+      value={suffix}
+      onChange={(e) => setSuffix(e.currentTarget.value)}
+      placeholder="Enter suffix..."
+      width={25}
+    />
+  </InlineField>
+
+<Stack direction="row" gap={1}>
+  {/* Previous Button */}
+  <Button
+    variant="secondary"
+    icon="angle-left"
+    disabled={pageIndex === 0}
+    onClick={() => {
+      const newIndex = pageIndex - 1;
+      setPageIndex(newIndex);
+      onRunQuery();
+    }}
+  />
+
+  {/* Current Page Input */}
+  <InlineField label="Page" labelWidth={6}>
+    <Input
+      type="number"
+      value={pageIndex + 1} 
+      min={1}
+      onChange={(e) => {
+        const newPage = Number(e.currentTarget.value) - 1;
+        setPageIndex(newPage >= 0 ? newPage : 0);
+        onRunQuery();
+      }}
+      width={12}
+    />
+  </InlineField>
+
+  {/* Next Button */}
+  <Button
+    variant="secondary"
+    icon="angle-right"
+    onClick={() => {
+      const newIndex = pageIndex + 1;
+      setPageIndex(newIndex);
+      onRunQuery();
+    }}
+  />
+
+  {/* Page Size Dropdown */}
+  <InlineField label="Rows" labelWidth={6}>
+    <Select
+      options={[
+        { label: '10', value: 10 },
+        { label: '20', value: 20 },
+        { label: '50', value: 50 },
+        { label: '100', value: 100 },
+      ]}
+      value={pageSize}
+      onChange={(v) => {
+        setPageSize(v.value!);
+        setPageIndex(0); 
+        onRunQuery();
+      }}
+      width={12}
+    />
+  </InlineField>
+</Stack>
     </Stack>
+
+    
   );
 }
