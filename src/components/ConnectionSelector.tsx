@@ -42,12 +42,16 @@ export const ConnectionSelector: React.FC<ConnectionSelectorProps> = ({
 
   // 🧠 Keep UI in sync with saved value from MyQuery
   useEffect(() => {
-    if (!value) {
+
+    console.log('Selected Value ID:', value);
+
+    if (value === null) {
       setSelectedOption(null);
       return;
     }
 
-    const matched = connectionOptions.find((opt) => opt.value === value.toString());
+
+    const matched = connectionOptions.find((opt) => opt.value === value!!.toString());
     if (matched) {
       setSelectedOption(matched);
     } else if (typeof value === 'string' && allowCustomValue) {

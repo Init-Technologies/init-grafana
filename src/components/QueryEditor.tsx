@@ -55,10 +55,7 @@ useEffect(() => {
     if (connections.length === 0) {
       ConnectionApiGet(true, '');
     }
-    if (variables.length === 0) {
-          VariablesApiGet(-1, true, '', true);
-    }
-
+  
   }, []);
 
   useEffect(() => {
@@ -70,6 +67,7 @@ useEffect(() => {
     }
     else
     {
+      
         if (selectedConnId !== null) {
         VariablesApiGet(selectedConnId, false, '');
         } else {
@@ -77,11 +75,13 @@ useEffect(() => {
       }
     }
 
-  }, [selectedConnId]);
+  }, [selectedConnId,selectedVariable]);
   useEffect(() => {
     console.log('Selected Connection ID:', selectedConnId);
     console.log('Selected Variable:', selectedVariable);
-  }, [selectedConnId, selectedVariable]);
+    console.log('Selected Connection Text:', selectedConnText);
+
+  }, [selectedConnId, selectedVariable,selectedConnText]);
 
 
   const onVariableChange = (value: any) => {
