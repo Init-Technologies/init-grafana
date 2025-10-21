@@ -62,9 +62,9 @@ type queryModel struct {
 
 	VariableIds     []int    `json:"variableIds"`
 	VariableNames   []string  `json:"variableNames"`
+
+	ErrorMessage   string   `json:"errorMessage"` 
 }
-
-
 type AlarmLog struct {
 	IwsAlarmDescription      string `json:"iwsAlarmDescription"`
 	IwsAlarmActivationTime   string `json:"iwsAlarmActivationTime"`

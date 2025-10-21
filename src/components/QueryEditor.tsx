@@ -28,6 +28,18 @@ const [selectedConnText, setSelectedConnText] = useState<string>(query.connectio
   const [pageIndex, setPageIndex] = useState(query.pageIndex ?? 0);
   const [pageSize, setPageSize] = useState(query.pageSize ?? 20);
 
+
+
+  const runQuerySafe = async () => {
+  try {
+    await Promise.resolve(onRunQuery());
+  } catch (err: any) {
+    console.error("API error onRunQuery:", err);
+
+  }
+};
+
+
 useEffect(() => {
   onChange({
     ...query,
@@ -49,9 +61,9 @@ useEffect(() => {
       pageSize,
     });
 
-   if ((selectedVariableIds && selectedVariableIds.length > 0)) {
-    onRunQuery();
-}
+    runQuerySafe();
+
+
   }, [type, prefix, suffix, pageIndex, pageSize]);
 
   useEffect(() => {
@@ -94,7 +106,8 @@ useEffect(() => {
   useEffect(() => {
   if ( (selectedVariableIds && selectedVariableIds.length > 0)) {
     console.log('Running query with variable IDs:', selectedVariableIds);
-    onRunQuery();
+    runQuerySafe();
+  
   }
 }, [selectedVariableIds]); 
 

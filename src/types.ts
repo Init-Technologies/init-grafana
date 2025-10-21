@@ -25,6 +25,9 @@ export interface MyQuery extends DataQuery {
   variableNames? : string[];
   variables? : VariableType[];
 
+  errorMessage? : string;
+
+
 }
 
 export const DEFAULT_QUERY: Partial<MyQuery> = {
