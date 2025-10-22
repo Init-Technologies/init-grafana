@@ -1,6 +1,7 @@
 import { DataSourceJsonData } from '@grafana/data';
 import { DataQuery } from '@grafana/schema';
 import { ConnectionType } from 'components/ConnectionSelector';
+import { VariableType } from 'components/VariableSelector';
 
 export interface MyQuery extends DataQuery {
   queryText?: string;
@@ -10,14 +11,20 @@ export interface MyQuery extends DataQuery {
   connectionText?: string;
   variableId?: number | null;
   variableText?: string;
-  isLive? : boolean;
-  isAlarm? : boolean;
-  isEvent? : boolean;
-  prefix?: string;
-  suffix?: string;
-  pageIndex?: number;
-  pageSize?: number;
+  isLive : boolean;
+  isAlarm : boolean;
+  isEvent : boolean;
+  prefix: string;
+  suffix: string;
+  pageIndex: number;
+  pageSize: number;
   connections?: ConnectionType[];
+
+
+  variableIds : number[];
+  variableNames : string[];
+  variables : VariableType[];
+
 }
 
 export const DEFAULT_QUERY: Partial<MyQuery> = {

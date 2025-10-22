@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { AsyncSelect, InlineField } from '@grafana/ui';
+import { AsyncSelect, InlineField, MultiSelect } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
 
 export interface VariableType {
@@ -8,8 +8,8 @@ export interface VariableType {
 }
 
 interface VariableSelectorProps {
-  value?: string | null;
-  onChange: (value: number | string) => void;
+  value?: number[]; // array of selected IDs
+  onChange: (variables: VariableType[]) => void;
   onTextChange: (value: string) => void;
   onRunQuery?: () => void;
   variables?: VariableType[];
@@ -22,17 +22,17 @@ interface VariableSelectorProps {
 }
 
 export const VariableSelector: React.FC<VariableSelectorProps> = ({
-  value,
+  value = [],
   onChange,
   onTextChange,
   onRunQuery = () => {},
   variables = [],
   width = 40,
-  label = 'Variable',
-  tooltip = 'Select a variable or enter custom value',
+  label = 'Variables',
+  tooltip = 'Select variables or enter custom values',
   allowCustomValue = true,
-  placeholder = 'Select or type a value...',
-  debounceMs = 1500, // default debounce delay
+  placeholder = 'Select or type values...',
+  debounceMs = 1500,
 }) => {
   const [inputValue, setInputValue] = useState('');
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
@@ -48,18 +48,11 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   );
 
   const [selectKey, setSelectKey] = useState(0);
-  useEffect(() => {
-    setSelectKey((prev) => prev + 1);
-  }, [variables]);
+  useEffect(() => setSelectKey(prev => prev + 1), [variables]);
 
-  const selectedOption = useMemo(() => {
-    return (
-      variableOptions.find((opt) => opt.value === value?.toString()) ||
-      (value && allowCustomValue
-        ? { label: value.toString(), value: value.toString() }
-        : null)
-    );
-  }, [variableOptions, value, allowCustomValue]);
+  const selectedOptions = useMemo(() => {
+    return variableOptions.filter(opt => value.includes(Number(opt.value)));
+  }, [variableOptions, value]);
 
   const loadOptions = useCallback(
     async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
@@ -74,24 +67,24 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   );
 
   const handleChange = useCallback(
-    (selected: SelectableValue<string>) => {
-      onChange(selected?.value ?? '');
+    (selected: Array<SelectableValue<string>>) => {
+      const selectedVars: VariableType[] = selected.map(opt => ({
+        id: Number(opt.value),
+        variableName: opt.label!,
+      }));
+      onChange(selectedVars);
       setInputValue('');
       onRunQuery();
     },
     [onChange, onRunQuery]
   );
 
-  
   const handleInputChange = useCallback(
     (newInputValue: string, { action }: { action: string }) => {
       if (action === 'input-change') {
         setInputValue(newInputValue);
-
         if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => {
-          onTextChange(newInputValue);
-        }, debounceMs);
+        debounceRef.current = setTimeout(() => onTextChange(newInputValue), debounceMs);
       }
       return newInputValue;
     },
@@ -100,12 +93,12 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
 
   return (
     <InlineField label={label} labelWidth={16} tooltip={tooltip}>
-      <AsyncSelect
+      <MultiSelect
         key={selectKey}
         defaultOptions={variableOptions}
         cacheOptions={false}
         loadOptions={loadOptions}
-        value={selectedOption}
+        value={selectedOptions}
         inputValue={inputValue}
         onInputChange={handleInputChange}
         onChange={handleChange}
