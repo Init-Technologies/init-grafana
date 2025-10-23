@@ -55,7 +55,7 @@ type queryModel struct {
 	IsEvent        bool    `json:"isEvent"`
 
  	Prefix         string `json:"prefix"`
-    Suffix         string `json:"suffix"`
+    OpcTags         string `json:"opcTags"`
 
 	PageIndex      int     `json:"pageIndex"`
 	PageSize       int     `json:"pageSize"`

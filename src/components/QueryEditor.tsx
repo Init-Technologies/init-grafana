@@ -22,7 +22,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     query.isAlarm ? 'Alarm' : query.isEvent ? 'Event' : query.isLive ? 'Live' : 'Live'
   );
   const [prefix, setPrefix] = useState(query.prefix ?? '');
-  const [suffix, setSuffix] = useState(query.suffix ?? '');
+  const [opcTags, setOpcTags] = useState(query.opcTags ?? '');
   const [pageIndex, setPageIndex] = useState(query.pageIndex ?? 0);
   const [pageSize, setPageSize] = useState(query.pageSize ?? 20);
 
@@ -36,18 +36,21 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
   }, [connections, selectedConnId, selectedConnText]);
 
   useEffect(() => {
-    onChange({
+      const updatedQuery = {
       ...query,
       isAlarm: type === 'Alarm',
       isEvent: type === 'Event',
       isLive: type === 'Live',
-      prefix,
-      suffix,
-      pageIndex,
-      pageSize,
-    });
-    onRunQuery();
-  }, [type, prefix, suffix, pageIndex, pageSize]);
+      prefix : prefix,
+      opcTags : opcTags,
+      pageIndex : pageIndex,
+      pageSize : pageSize
+    };
+
+  onChange({ ...updatedQuery }); 
+  
+  onRunQuery();
+  }, [type, prefix, opcTags, pageIndex, pageSize]);
 
   useEffect(() => {
     if (connections.length === 0) {
@@ -178,7 +181,6 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
             onChange={onConnectionChange}
             onTextChange={onTextConnectionChange}
             connections={connections}
-            onRunQuery={onRunQuery}
           />
         </div>
       ) : (
@@ -213,22 +215,22 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
       </InlineField>
 
       {/* Prefix */}
-      <InlineField label="Prefix" labelWidth={14}>
+      <InlineField label="Prefix" labelWidth={22}>
         <Input
           value={prefix}
           onChange={(e) => setPrefix(e.currentTarget.value)}
           placeholder="Enter prefix..."
-          width={25}
+          width={50}
         />
       </InlineField>
 
       {/* Suffix */}
-      <InlineField label="Suffix" labelWidth={14}>
+      <InlineField label="OpcTags" labelWidth={22}>
         <Input
-          value={suffix}
-          onChange={(e) => setSuffix(e.currentTarget.value)}
-          placeholder="Enter suffix..."
-          width={25}
+          value={opcTags}
+          onChange={(e) => setOpcTags(e.currentTarget.value)}
+          placeholder="Enter OpcTags eg. (tag1,tag2,tag3)"
+          width={50}
         />
       </InlineField>
 
@@ -240,7 +242,6 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
           disabled={pageIndex === 0}
           onClick={() => {
             setPageIndex((prev) => Math.max(prev - 1, 0));
-            onRunQuery();
           }}
         />
 
@@ -252,7 +253,6 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
             onChange={(e) => {
               const newPage = Number(e.currentTarget.value) - 1;
               setPageIndex(newPage >= 0 ? newPage : 0);
-              onRunQuery();
             }}
             width={12}
           />
@@ -263,7 +263,6 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
           icon="angle-right"
           onClick={() => {
             setPageIndex((prev) => prev + 1);
-            onRunQuery();
           }}
         />
 
@@ -279,7 +278,6 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
             onChange={(v) => {
               setPageSize(v.value!);
               setPageIndex(0);
-              onRunQuery();
             }}
             width={12}
           />

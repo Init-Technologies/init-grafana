@@ -15,7 +15,7 @@ export interface MyQuery extends DataQuery {
   isAlarm : boolean;
   isEvent : boolean;
   prefix: string;
-  suffix: string;
+  opcTags: string;
   pageIndex: number;
   pageSize: number;
   connections?: ConnectionType[];

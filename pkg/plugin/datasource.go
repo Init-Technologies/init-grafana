@@ -19,7 +19,7 @@ import (
     "strconv"
 )
 
-var GlobalBaseUrl string = "http://192.168.22.48:5123"
+var GlobalBaseUrl string = "https://cloud.oilfield-monitor.com"
 
 
 // UnmarshalJSON implements the json.Unmarshaler interface
@@ -95,6 +95,9 @@ func (d *Datasource) QueryData(ctx context.Context, req *backend.QueryDataReques
 func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query backend.DataQuery, req *backend.QueryDataRequest) backend.DataResponse {
 	var response backend.DataResponse
 	var qm queryModel
+
+
+	response.Frames = []*data.Frame{}
 
 	log.DefaultLogger.Info("PLUGIN QUERY -- START ----------------------------")
 	log.DefaultLogger.Info("PLUGIN QUERY -- Raw query JSON", "json", string(query.JSON))
@@ -196,8 +199,8 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 			frame := data.NewFrame(
 			"Alarms",
 			data.NewField("Description", nil, []string{}),
-			data.NewField("ActivationTime", nil, []time.Time{}),
-			data.NewField("TerminationTime", nil, []time.Time{}),
+			data.NewField("Activation Time", nil, []time.Time{}),
+			data.NewField("Termination Time", nil, []time.Time{}),
 		)
 
 		for _, alarm := range raw {
@@ -225,13 +228,13 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	}
 
 	if qm.IsEvent {
-		urlStr = fmt.Sprintf("%s/api/public/events?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&suffix=%s&pageIndex=%s&pageSize=%s",
+		urlStr = fmt.Sprintf("%s/api/public/events?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&opcTags=%s&pageIndex=%s&pageSize=%s",
 			GlobalBaseUrl, 
 			url.QueryEscape(from), 
 			url.QueryEscape(to), 
 			url.QueryEscape(joinedVarIds), 
 			url.QueryEscape(qm.Prefix),
-			url.QueryEscape(qm.Suffix),
+			url.QueryEscape(qm.OpcTags),
 			url.QueryEscape(strconv.Itoa(pageIndex)), 
 			url.QueryEscape(strconv.Itoa(pageSize)))
 		log.DefaultLogger.Info("PLUGIN QUERY -- EVENT URL", "url", urlStr)
@@ -283,7 +286,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 			frame := data.NewFrame(
 			"Events",
 			data.NewField("Description", nil, []string{}),
-			data.NewField("ActivationTime", nil, []time.Time{}),
+			data.NewField("Activation Time", nil, []time.Time{}),
 		)
 
 		for _, event := range raw {
