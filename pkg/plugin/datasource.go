@@ -19,6 +19,9 @@ import (
     "strconv"
 )
 
+var GlobalBaseUrl string = "http://192.168.22.48:5123"
+
+
 // UnmarshalJSON implements the json.Unmarshaler interface
 func (ct *CustomTime) UnmarshalJSON(data []byte) error {
 	var s string
@@ -105,7 +108,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	log.DefaultLogger.Info("PLUGIN QUERY -- Parsed QueryModel", "queryText", qm.QueryText, "IsAlarm", qm.IsAlarm, "IsEvent", qm.IsEvent, "IsLive", qm.IsLive)
 
 	config, _ := models.LoadPluginSettings(*req.PluginContext.DataSourceInstanceSettings)
-	log.DefaultLogger.Info("PLUGIN QUERY -- Loaded Plugin Settings", "baseUrl", config.BaseUrl)
+	log.DefaultLogger.Info("PLUGIN QUERY -- Loaded Plugin Settings", "baseUrl", GlobalBaseUrl)
 
 	from := query.TimeRange.From.UTC().Format("2006-01-02T15:04:05")
 	to := query.TimeRange.To.UTC().Format("2006-01-02T15:04:05")
@@ -138,7 +141,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 	var urlStr string
 	if qm.IsAlarm {
 		urlStr = fmt.Sprintf("%s/api/public/alarms?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&pageIndex=%s&pageSize=%s",
-		config.BaseUrl,
+		GlobalBaseUrl,
 		url.QueryEscape(from),
 		url.QueryEscape(to),
 		url.QueryEscape(joinedVarIds),
@@ -223,7 +226,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 	if qm.IsEvent {
 		urlStr = fmt.Sprintf("%s/api/public/events?dateFrom=%s&dateTo=%s&varId=%s&locationPrefix=%s&suffix=%s&pageIndex=%s&pageSize=%s",
-			config.BaseUrl, 
+			GlobalBaseUrl, 
 			url.QueryEscape(from), 
 			url.QueryEscape(to), 
 			url.QueryEscape(joinedVarIds), 
@@ -304,7 +307,7 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 	if qm.IsLive {
 		urlStr = fmt.Sprintf("%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
-			config.BaseUrl, url.QueryEscape(from), url.QueryEscape(to), url.QueryEscape(joinedVarIds))
+			GlobalBaseUrl, url.QueryEscape(from), url.QueryEscape(to), url.QueryEscape(joinedVarIds))
 		log.DefaultLogger.Info("PLUGIN QUERY -- Final API URL", "url", urlStr)
 
 		client := &http.Client{}
@@ -456,7 +459,10 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 			values.Set("skipPagination", "true")
 		}
 
-		baseURL, _ := url.Parse(config.BaseUrl + "/api/public/variables-dto")
+		baseURL, _ := url.Parse(GlobalBaseUrl + "/api/public/variables-dto")
+
+		log.DefaultLogger.Info("PLUGIN QUERY -- BaseUrl", "url", GlobalBaseUrl)
+
 		baseURL.RawQuery = values.Encode()
 
 		client := &http.Client{}
@@ -522,7 +528,7 @@ func (ds *Datasource) CallResource(ctx context.Context, req *backend.CallResourc
 			values.Set("skipConnectionFilter", "false")
 		}
 
-		baseURL, _ := url.Parse(config.BaseUrl + "/api/public/connections")
+		baseURL, _ := url.Parse(GlobalBaseUrl + "/api/public/connections")
 		baseURL.RawQuery = values.Encode()
 
 		client := &http.Client{}

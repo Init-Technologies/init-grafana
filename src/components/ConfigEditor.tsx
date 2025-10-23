@@ -50,7 +50,7 @@ export function ConfigEditor(props: Props) {
   return (
     <>
      
-         <InlineField
+         {/* <InlineField
         label="Base URL"
         labelWidth={14}
         tooltip="Base API URL used for queries"
@@ -61,7 +61,7 @@ export function ConfigEditor(props: Props) {
           onChange={onBaseUrlChange}
           placeholder="https://my-api.example.com"
         />
-      </InlineField>
+      </InlineField> */}
 
 
       <InlineField label="API Key" labelWidth={14} interactive tooltip={'Secure json field (backend only)'}>
