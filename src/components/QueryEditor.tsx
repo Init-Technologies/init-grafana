@@ -15,7 +15,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
   const [selectedConnId, setSelectedConnId] = useState<number | null>(query.connectionId ?? null);
   const [selectedConnText, setSelectedConnText] = useState<string>(query.connectionText ?? '');
 
-  const [selectedVariable, setSelectedVariable] = useState<string>(query.queryText ?? ''); // comma-separated IDs
+  const [selectedVariable, setSelectedVariable] = useState<string>(query.queryText ?? ''); 
   const [variables, setVariables] = useState<VariableType[]>([]);
 
   const [type, setType] = useState<'Alarm' | 'Event' | 'Live'>(
@@ -44,7 +44,8 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
       prefix : prefix,
       opcTags : opcTags,
       pageIndex : pageIndex,
-      pageSize : pageSize
+      pageSize : pageSize,
+      variables : variables
     };
 
   onChange({ ...updatedQuery }); 

@@ -19,6 +19,7 @@ import (
     "strconv"
 )
 
+// var GlobalBaseUrl string = "http://192.168.22.48:5123"
 var GlobalBaseUrl string = "https://cloud.oilfield-monitor.com"
 
 
@@ -308,8 +309,8 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 		response.Frames = append(response.Frames, frame)
 	}
 
-	if qm.IsLive {
-		urlStr = fmt.Sprintf("%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
+	if qm.IsLive && len(varIds) != 0 && varIds != nil {
+			urlStr = fmt.Sprintf("%s/api/public/variables/getHistoryLoggedValuesV2?dateFrom=%s&dateTo=%s&varId=%s",
 			GlobalBaseUrl, url.QueryEscape(from), url.QueryEscape(to), url.QueryEscape(joinedVarIds))
 		log.DefaultLogger.Info("PLUGIN QUERY -- Final API URL", "url", urlStr)
 
@@ -385,23 +386,34 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 		}
 
 		for varId, values := range grouped {
-			frameName := fmt.Sprintf("VariableId_%d", varId)
-			frame := data.NewFrame(frameName)
+				var varName string
+				for _, v := range qm.Variables {
+					if v.ID == varId {
+						varName = v.VariableName
+						break
+					}
+				}
 
-			times := make([]time.Time, len(values))
-			vals := make([]float64, len(values))
-			for i, v := range values {
-				times[i] = v.Timestamp
-				vals[i] = v.Value
+				if varName == "" {
+					varName = fmt.Sprintf("%d", varId)
+				}
+
+				frame := data.NewFrame(varName)
+
+				times := make([]time.Time, len(values))
+				vals := make([]float64, len(values))
+				for i, v := range values {
+					times[i] = v.Timestamp
+					vals[i] = v.Value
+				}
+
+				frame.Fields = append(frame.Fields,
+					data.NewField("time", nil, times),
+					data.NewField("value", nil, vals),
+				)
+
+				response.Frames = append(response.Frames, frame)
 			}
-
-			frame.Fields = append(frame.Fields,
-				data.NewField("time", nil, times),
-				data.NewField("value", nil, vals),
-			)
-
-			response.Frames = append(response.Frames, frame)
-		}
 	}
 
 	log.DefaultLogger.Info("PLUGIN QUERY -- END --------------------------------")

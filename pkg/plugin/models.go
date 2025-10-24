@@ -62,6 +62,7 @@ type queryModel struct {
 
 	VariableIds     []int    `json:"variableIds"`
 	VariableNames   []string  `json:"variableNames"`
+	Variables [] Variables    `json:"variables"`
 }
 
 

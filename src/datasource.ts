@@ -32,7 +32,9 @@ filterQuery(query: MyQuery): boolean {
     query.prefix !== undefined ||
     query.opcTags !== undefined ||
     query.pageIndex !== undefined ||
-    query.pageSize !== undefined
+    query.pageSize !== undefined ||
+    query.variables !== undefined
+
   );
 }
 }
