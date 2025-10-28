@@ -55,16 +55,17 @@ type queryModel struct {
 	IsEvent        bool    `json:"isEvent"`
 
  	Prefix         string `json:"prefix"`
-    Suffix         string `json:"suffix"`
+    OpcTags         string `json:"opcTags"`
 
 	PageIndex      int     `json:"pageIndex"`
 	PageSize       int     `json:"pageSize"`
 
 	VariableIds     []int    `json:"variableIds"`
 	VariableNames   []string  `json:"variableNames"`
-
-	ErrorMessage   string   `json:"errorMessage"` 
+	Variables [] Variables    `json:"variables"`
 }
+
+
 type AlarmLog struct {
 	IwsAlarmDescription      string `json:"iwsAlarmDescription"`
 	IwsAlarmActivationTime   string `json:"iwsAlarmActivationTime"`

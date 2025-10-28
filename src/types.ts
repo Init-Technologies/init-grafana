@@ -11,22 +11,19 @@ export interface MyQuery extends DataQuery {
   connectionText?: string;
   variableId?: number | null;
   variableText?: string;
-  isLive? : boolean;
-  isAlarm? : boolean;
-  isEvent? : boolean;
-  prefix?: string;
-  suffix?: string;
-  pageIndex?: number;
-  pageSize?: number;
+  isLive : boolean;
+  isAlarm : boolean;
+  isEvent : boolean;
+  prefix: string;
+  opcTags: string;
+  pageIndex: number;
+  pageSize: number;
   connections?: ConnectionType[];
 
 
-  variableIds? : number[] | null;
-  variableNames? : string[];
-  variables? : VariableType[];
-
-  errorMessage? : string;
-
+  variableIds : number[];
+  variableNames : string[];
+  variables : VariableType[];
 
 }
 
@@ -57,3 +54,4 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
 export interface MySecureJsonData {
   apiKey?: string;
 }
+

@@ -19,8 +19,22 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
     };
   }
 
-  filterQuery(query: MyQuery): boolean {
-    // if no query has been provided, prevent the query from being executed
-    return !!query.queryText;
+filterQuery(query: MyQuery): boolean {
+  if (query.isLive && (!query.queryText || query.queryText === '')) {
+    return false;
   }
+  
+  return (
+    query.queryText !== undefined ||
+    query.isLive !== undefined ||
+    query.isAlarm !== undefined ||
+    query.isEvent !== undefined ||
+    query.prefix !== undefined ||
+    query.opcTags !== undefined ||
+    query.pageIndex !== undefined ||
+    query.pageSize !== undefined ||
+    query.variables !== undefined
+
+  );
+}
 }

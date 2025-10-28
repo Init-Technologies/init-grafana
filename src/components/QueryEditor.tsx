@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Stack, InlineField, Input, Select,Button, RadioButtonGroup } from '@grafana/ui';
+import { Stack, InlineField, Input, Select, Button, RadioButtonGroup } from '@grafana/ui';
 import { QueryEditorProps } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { MyDataSourceOptions, MyQuery } from '../types';
@@ -11,153 +11,110 @@ import { ConnectionSelector, ConnectionType } from './ConnectionSelector';
 type Props = QueryEditorProps<DataSource, MyQuery, MyDataSourceOptions>;
 
 export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) {
-const [connections, setConnections] = useState<ConnectionType[]>(query.connections?? []);
-const [selectedConnId, setSelectedConnId] = useState<number | null>(query.connectionId ?? null);
-const [selectedConnText, setSelectedConnText] = useState<string>(query.connectionText ?? '');
+  const [connections, setConnections] = useState<ConnectionType[]>(query.connections ?? []);
+  const [selectedConnId, setSelectedConnId] = useState<number | null>(query.connectionId ?? null);
+  const [selectedConnText, setSelectedConnText] = useState<string>(query.connectionText ?? '');
 
-  const [selectedVariableIds, setSelectedVariableIds] = useState<number[] | null>(query.variableIds ?? []);
-  const [selectedVariableNames, setSelectedVariableNames] = useState<string[] | null>(query.variableNames ?? []);
-  const [variables, setVariables] = useState<VariableType[]>(query.variables ?? []);
+  const [selectedVariable, setSelectedVariable] = useState<string>(query.queryText ?? ''); 
+  const [variables, setVariables] = useState<VariableType[]>([]);
 
-
- const [type, setType] = useState<'Alarm' | 'Event' | 'Live'>(
-  query.isAlarm ? 'Alarm' : query.isEvent ? 'Event' : query.isLive ? 'Live' : 'Live'
-);
+  const [type, setType] = useState<'Alarm' | 'Event' | 'Live'>(
+    query.isAlarm ? 'Alarm' : query.isEvent ? 'Event' : query.isLive ? 'Live' : 'Live'
+  );
   const [prefix, setPrefix] = useState(query.prefix ?? '');
-  const [suffix, setSuffix] = useState(query.suffix ?? '');
+  const [opcTags, setOpcTags] = useState(query.opcTags ?? '');
   const [pageIndex, setPageIndex] = useState(query.pageIndex ?? 0);
   const [pageSize, setPageSize] = useState(query.pageSize ?? 20);
-
-
-
-  const runQuerySafe = async () => {
-  try {
-    await Promise.resolve(onRunQuery());
-  } catch (err: any) {
-    console.error("API error onRunQuery:", err);
-
-  }
-};
-
-
-useEffect(() => {
-  onChange({
-    ...query,
-    connections,
-    connectionId: selectedConnId,
-    connectionText: selectedConnText,
-  });
-}, [connections, selectedConnId, selectedConnText]);
 
   useEffect(() => {
     onChange({
       ...query,
+      connections,
+      connectionId: selectedConnId,
+      connectionText: selectedConnText,
+    });
+  }, [connections, selectedConnId, selectedConnText]);
+
+  useEffect(() => {
+      const updatedQuery = {
+      ...query,
       isAlarm: type === 'Alarm',
       isEvent: type === 'Event',
       isLive: type === 'Live',
-      prefix,
-      suffix,
-      pageIndex,
-      pageSize,
-    });
+      prefix : prefix,
+      opcTags : opcTags,
+      pageIndex : pageIndex,
+      pageSize : pageSize,
+      variables : variables
+    };
 
-    runQuerySafe();
-
-
-  }, [type, prefix, suffix, pageIndex, pageSize]);
+  onChange({ ...updatedQuery }); 
+  
+  onRunQuery();
+  }, [type, prefix, opcTags, pageIndex, pageSize]);
 
   useEffect(() => {
     if (connections.length === 0) {
       ConnectionApiGet(true, '');
     }
-  
   }, []);
 
   useEffect(() => {
+    const skipConnFilter = selectedConnId === null;
+    const connId = selectedConnId ?? 0;
+    VariablesApiGet(connId, skipConnFilter, '', true);
 
-    if(selectedConnId === null && selectedVariableIds === null)
-    {
+    onRunQuery();
+  }, [selectedConnId]);
 
-      VariablesApiGet(-1, true, '', true);
-    }
-    else
-    {
-      
-        if (selectedConnId !== null) {
-        VariablesApiGet(selectedConnId, false, '');
-        } else {
-        VariablesApiGet(0, true, '');
-      }
-    }
-
-  }, [selectedConnId,selectedVariableIds]);
   useEffect(() => {
     console.log('Selected Connection ID:', selectedConnId);
+    console.log('Selected Variable:', selectedVariable);
     console.log('Selected Connection Text:', selectedConnText);
-    console.log('Selected Variable Ids:', selectedVariableIds);
+  }, [selectedConnId, selectedVariable, selectedConnText]);
 
 
-    console.log('Selected Variable Names:', selectedVariableNames);
+  const onVariableChange = (selectedVars: VariableType[]) => {
+    const ids = selectedVars.map(v => v.id);
+    const idsString = ids.join(',');
+    setSelectedVariable(idsString);
 
+    onChange({
+      ...query,
+      queryText: idsString, 
+    });
+    onRunQuery(); 
+  };
 
-  }, [selectedConnId, selectedVariableIds,selectedConnText]);
+  const onConnectionChange = (id: number | null, name?: string) => {
+    setSelectedConnId(id);
+    setSelectedConnText(name ?? '');
+    onChange({
+      ...query,
+      connectionId: id,
+      connectionText: name ?? '',
+    });
+    onRunQuery();
+  };
 
+  const onTextConnectionChange = (value: string) => {
+    const skipFilter = value === '';
+    ConnectionApiGet(skipFilter, value).then(setConnections);
 
-  useEffect(() => {
-  if ( (selectedVariableIds && selectedVariableIds.length > 0)) {
-    console.log('Running query with variable IDs:', selectedVariableIds);
-    runQuerySafe();
-  
-  }
-}, [selectedVariableIds]); 
-
-  const onVariableChange = (selectedVariables: VariableType[]) => {
-  const ids = selectedVariables.map(v => v.id);
-  const names = selectedVariables.map(v => v.variableName);
-
-  console.log('====> Var Changes Selected Variable Ids:', selectedVariableIds);
-
-  
-  setSelectedVariableIds(ids.length > 0 ? ids : null);
-  setSelectedVariableNames(names.length > 0 ? names : null);
-  
-  onChange({
-    ...query,
-    variableIds: ids.length > 0 ? ids : [],
-    variableNames: names.length > 0 ? names : [],
-    variables: selectedVariables,
-  });
-};
-
- const onConnectionChange = (id: number | null, name?: string) => {
-  setSelectedConnId(id);
-  setSelectedConnText(name?? '')
-  onChange({
-    ...query,
-    connectionId: id,
-    connectionText: name ?? '',
-  });
-};
-
-const onTextConnectionChange = (value: string) => {
-  const skipFilter = value === '';
-  ConnectionApiGet(skipFilter, value).then(setConnections);
-
-  if (skipFilter) {
-    setSelectedConnId(null);
-    setSelectedConnText('');
-    onChange({ ...query, connectionId: null, connectionText: '' });
-  }
-};
+    if (skipFilter) {
+      setSelectedConnId(null);
+      setSelectedConnText('');
+      onChange({ ...query, connectionId: null, connectionText: '' });
+    }
+  };
 
   const onTextVariableChange = (value: string) => {
     const connId = selectedConnId ?? 0;
     const skipFilter = selectedConnId === null;
-
     const skipPagination = value.trim() === '' && selectedConnId === null;
-
     VariablesApiGet(connId, skipFilter, value, skipPagination);
   };
+
 
   async function VariablesApiGet(
     connId: number,
@@ -212,16 +169,20 @@ const onTextConnectionChange = (value: string) => {
     }
   }
 
+  const selectedVariableIds = selectedVariable
+    ? selectedVariable.split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n))
+    : [];
+
   return (
     <Stack direction="column" gap={1}>
       {connections.length > 0 ? (
         <div className="gf-form-group">
-         <ConnectionSelector
-        value={selectedConnId}
-        onChange={onConnectionChange}
-        onTextChange={onTextConnectionChange}
-        connections={connections}
-      />
+          <ConnectionSelector
+            value={selectedConnId}
+            onChange={onConnectionChange}
+            onTextChange={onTextConnectionChange}
+            connections={connections}
+          />
         </div>
       ) : (
         <div>Loading Connections...</div>
@@ -234,105 +195,95 @@ const onTextConnectionChange = (value: string) => {
             onChange={onVariableChange}
             onTextChange={onTextVariableChange}
             variables={variables}
-  />
+            onRunQuery={onRunQuery}
+          />
         </div>
       ) : (
         <div>Loading Variables...</div>
       )}
 
-        {/* Alarm/Event Type */}
-  <InlineField label="Type" labelWidth={14}>
-  <RadioButtonGroup<'Alarm' | 'Event' | 'Live'>
-      options={[
-        { label: 'Live', value: 'Live' },
-        { label: 'Alarm', value: 'Alarm' },
-        { label: 'Event', value: 'Event' },
-      ]}
-      value={type}
-      onChange={(v) => setType(v)}
-    />
-  </InlineField>
+      {/* Alarm/Event Type */}
+      <InlineField label="Type" labelWidth={14}>
+        <RadioButtonGroup<'Alarm' | 'Event' | 'Live'>
+          options={[
+            { label: 'Live', value: 'Live' },
+            { label: 'Alarm', value: 'Alarm' },
+            { label: 'Event', value: 'Event' },
+          ]}
+          value={type}
+          onChange={(v) => setType(v)}
+        />
+      </InlineField>
 
-  {/* Prefix */}
-  <InlineField label="Prefix" labelWidth={14}>
-    <Input
-      value={prefix}
-      onChange={(e) => setPrefix(e.currentTarget.value)}
-      placeholder="Enter prefix..."
-      width={25}
-    />
-  </InlineField>
+      {/* Prefix */}
+      <InlineField label="Prefix" labelWidth={22}>
+        <Input
+          value={prefix}
+          onChange={(e) => setPrefix(e.currentTarget.value)}
+          placeholder="Enter prefix..."
+          width={50}
+        />
+      </InlineField>
 
-  {/* Suffix */}
-  <InlineField label="Suffix" labelWidth={14}>
-    <Input
-      value={suffix}
-      onChange={(e) => setSuffix(e.currentTarget.value)}
-      placeholder="Enter suffix..."
-      width={25}
-    />
-  </InlineField>
+      {/* Suffix */}
+      <InlineField label="OpcTags" labelWidth={22}>
+        <Input
+          value={opcTags}
+          onChange={(e) => setOpcTags(e.currentTarget.value)}
+          placeholder="Enter OpcTags eg. (tag1,tag2,tag3)"
+          width={50}
+        />
+      </InlineField>
 
-<Stack direction="row" gap={1}>
-  {/* Previous Button */}
-  <Button
-    variant="secondary"
-    icon="angle-left"
-    disabled={pageIndex === 0}
-    onClick={() => {
-      const newIndex = pageIndex - 1;
-      setPageIndex(newIndex);
+      {/* Pagination */}
+      <Stack direction="row" gap={1}>
+        <Button
+          variant="secondary"
+          icon="angle-left"
+          disabled={pageIndex === 0}
+          onClick={() => {
+            setPageIndex((prev) => Math.max(prev - 1, 0));
+          }}
+        />
 
-    }}
-  />
+        <InlineField label="Page" labelWidth={6}>
+          <Input
+            type="number"
+            value={pageIndex + 1}
+            min={1}
+            onChange={(e) => {
+              const newPage = Number(e.currentTarget.value) - 1;
+              setPageIndex(newPage >= 0 ? newPage : 0);
+            }}
+            width={12}
+          />
+        </InlineField>
 
-  {/* Current Page Input */}
-  <InlineField label="Page" labelWidth={6}>
-    <Input
-      type="number"
-      value={pageIndex + 1} 
-      min={1}
-      onChange={(e) => {
-        const newPage = Number(e.currentTarget.value) - 1;
-        setPageIndex(newPage >= 0 ? newPage : 0);
+        <Button
+          variant="secondary"
+          icon="angle-right"
+          onClick={() => {
+            setPageIndex((prev) => prev + 1);
+          }}
+        />
 
-      }}
-      width={12}
-    />
-  </InlineField>
-
-  {/* Next Button */}
-  <Button
-    variant="secondary"
-    icon="angle-right"
-    onClick={() => {
-      const newIndex = pageIndex + 1;
-      setPageIndex(newIndex);
-
-    }}
-  />
-
-  {/* Page Size Dropdown */}
-  <InlineField label="Rows" labelWidth={6}>
-    <Select
-      options={[
-        { label: '10', value: 10 },
-        { label: '20', value: 20 },
-        { label: '50', value: 50 },
-        { label: '100', value: 100 },
-      ]}
-      value={pageSize}
-      onChange={(v) => {
-        setPageSize(v.value!);
-        setPageIndex(0); 
-
-      }}
-      width={12}
-    />
-  </InlineField>
-</Stack>
+        <InlineField label="Rows" labelWidth={6}>
+          <Select
+            options={[
+              { label: '10', value: 10 },
+              { label: '20', value: 20 },
+              { label: '50', value: 50 },
+              { label: '100', value: 100 },
+            ]}
+            value={pageSize}
+            onChange={(v) => {
+              setPageSize(v.value!);
+              setPageIndex(0);
+            }}
+            width={12}
+          />
+        </InlineField>
+      </Stack>
     </Stack>
-
-    
   );
 }
