@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { AsyncSelect, InlineField, MultiSelect } from '@grafana/ui';
+import { InlineField, MultiSelect } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
 
 export interface VariableType {
@@ -8,7 +8,7 @@ export interface VariableType {
 }
 
 interface VariableSelectorProps {
-  value?: number[]; // array of selected IDs
+  value?: number[];
   onChange: (variables: VariableType[]) => void;
   onTextChange: (value: string) => void;
   onRunQuery?: () => void;
@@ -18,7 +18,7 @@ interface VariableSelectorProps {
   tooltip?: string;
   allowCustomValue?: boolean;
   placeholder?: string;
-  debounceMs?: number; 
+  debounceMs?: number;
 }
 
 export const VariableSelector: React.FC<VariableSelectorProps> = ({
@@ -32,35 +32,48 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   tooltip = 'Select variables or enter custom values',
   allowCustomValue = true,
   placeholder = 'Select or type values...',
-  debounceMs = 1500,
+  debounceMs = 2500,
 }) => {
   const [inputValue, setInputValue] = useState('');
+  const [allVariables, setAllVariables] = useState<VariableType[]>(variables);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    setAllVariables((prev) => {
+      const merged = [...prev];
+      for (const v of variables) {
+        if (!merged.some(m => m.id === v.id)) merged.push(v);
+      }
+      return merged;
+    });
+  }, [variables]);
 
   const variableOptions = useMemo(
     () =>
-      variables.map((variable) => ({
+      allVariables.map((variable) => ({
         label: variable.variableName,
         value: variable.id.toString(),
         original: variable,
       })),
-    [variables]
+    [allVariables]
   );
 
   const [selectKey, setSelectKey] = useState(0);
   useEffect(() => setSelectKey(prev => prev + 1), [variables]);
 
-  const selectedOptions = useMemo(() => {
-    return variableOptions.filter(opt => value.includes(Number(opt.value)));
-  }, [variableOptions, value]);
+  const selectedOptions = useMemo(
+    () => variableOptions.filter(opt => value.includes(Number(opt.value))),
+    [variableOptions, value]
+  );
 
   const loadOptions = useCallback(
     async (inputValue: string): Promise<Array<SelectableValue<string>>> => {
       if (!inputValue) return variableOptions;
+      const lower = inputValue.toLowerCase();
       return variableOptions.filter(
         (option) =>
-          option.label.toLowerCase().includes(inputValue.toLowerCase()) ||
-          option.value.toLowerCase().includes(inputValue.toLowerCase())
+          option.label.toLowerCase().includes(lower) ||
+          option.value.toLowerCase().includes(lower)
       );
     },
     [variableOptions]
@@ -83,8 +96,8 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
     (newInputValue: string, { action }: { action: string }) => {
       if (action === 'input-change') {
         setInputValue(newInputValue);
-        if (debounceRef.current) clearTimeout(debounceRef.current);
-        debounceRef.current = setTimeout(() => onTextChange(newInputValue), debounceMs);
+        // if (debounceRef.current) clearTimeout(debounceRef.current);
+        // debounceRef.current = setTimeout(() => onTextChange(newInputValue), debounceMs);
       }
       return newInputValue;
     },
@@ -108,6 +121,8 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
         loadingMessage="Loading variables..."
         noOptionsMessage="No variables found"
         isClearable
+        getOptionLabel={(opt) => opt.label}
+        getOptionValue={(opt) => opt.value}
       />
     </InlineField>
   );

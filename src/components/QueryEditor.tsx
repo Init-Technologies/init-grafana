@@ -51,7 +51,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
   onChange({ ...updatedQuery }); 
   
   onRunQuery();
-  }, [type, prefix, opcTags, pageIndex, pageSize]);
+  }, [type, prefix, opcTags, pageIndex, pageSize,variables]);
 
   useEffect(() => {
     if (connections.length === 0) {
@@ -82,6 +82,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     onChange({
       ...query,
       queryText: idsString, 
+      variables: selectedVars
     });
     onRunQuery(); 
   };
@@ -107,13 +108,22 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
       onChange({ ...query, connectionId: null, connectionText: '' });
     }
   };
+  
+const onTextVariableChange = async (value: string) => {
+  const connId = selectedConnId ?? 0;
+  const skipFilter = selectedConnId === null;
+  const skipPagination = value.trim() === '' && selectedConnId === null;
+  const newVars = await VariablesApiGet(connId, skipFilter, value, skipPagination);
 
-  const onTextVariableChange = (value: string) => {
-    const connId = selectedConnId ?? 0;
-    const skipFilter = selectedConnId === null;
-    const skipPagination = value.trim() === '' && selectedConnId === null;
-    VariablesApiGet(connId, skipFilter, value, skipPagination);
-  };
+  setVariables(prev => {
+    const merged = [...prev];
+    for (const v of newVars) {
+      if (!merged.some(m => m.id === v.id)) merged.push(v);
+    }
+    return merged;
+  });
+};
+
 
 
   async function VariablesApiGet(
