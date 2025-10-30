@@ -59,13 +59,25 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
     }
   }, []);
 
-  useEffect(() => {
-    const skipConnFilter = selectedConnId === null;
-    const connId = selectedConnId ?? 0;
-    VariablesApiGet(connId, skipConnFilter, '', true);
+useEffect(() => {
+  const skipConnFilter = selectedConnId === null;  
+  const connId = selectedConnId ?? -1;    
+  
+  let skipPagination = selectedConnId === null;  
 
-    onRunQuery();
-  }, [selectedConnId]);
+  VariablesApiGet(connId, skipConnFilter, '', skipPagination)
+    .then(fetchedVars => {
+      console.log('🔍 Filtered variables for connection:', selectedConnId, selectedConnText);
+      console.table(fetchedVars);
+      setVariables(fetchedVars);
+    })
+    .catch(error => {
+      console.error('Error fetching variables:', error);
+    });
+
+  onRunQuery();
+}, [selectedConnId, selectedConnText]);
+
 
   useEffect(() => {
     console.log('Selected Connection ID:', selectedConnId);

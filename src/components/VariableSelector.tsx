@@ -38,15 +38,18 @@ export const VariableSelector: React.FC<VariableSelectorProps> = ({
   const [allVariables, setAllVariables] = useState<VariableType[]>(variables);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // useEffect(() => {
+  //   setAllVariables((prev) => {
+  //     const merged = [...prev];
+  //     for (const v of variables) {
+  //       if (!merged.some(m => m.id === v.id)) merged.push(v);
+  //     }
+  //     return merged;
+  //   });
+  // }, [variables]);
   useEffect(() => {
-    setAllVariables((prev) => {
-      const merged = [...prev];
-      for (const v of variables) {
-        if (!merged.some(m => m.id === v.id)) merged.push(v);
-      }
-      return merged;
-    });
-  }, [variables]);
+  setAllVariables(variables);
+}, [variables]);
 
   const variableOptions = useMemo(
     () =>
