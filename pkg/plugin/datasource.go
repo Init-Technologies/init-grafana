@@ -21,7 +21,7 @@ import (
 
 // var GlobalBaseUrl string = "http://192.168.22.48:5123"
 var GlobalBaseUrl string = "https://cloud.oilfield-monitor.com"
- //var GlobalBaseUrl string = "https://stage.inviewscada.com"
+//var GlobalBaseUrl string = "https://stage.inviewscada.com"
 
 
 // UnmarshalJSON implements the json.Unmarshaler interface
@@ -133,7 +133,12 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 
 
 
-	varIds := []string{qm.QueryText}
+	varIds := make([]string, len(qm.Variables))
+
+	for i, v := range qm.Variables {
+		varIds[i] = strconv.Itoa(v.ID) 
+	}
+
 	joinedVarIds := strings.Join(varIds, ",")
 	pageIndex := qm.PageIndex
 	pageSize := qm.PageSize
@@ -386,37 +391,52 @@ func (d *Datasource) query(_ context.Context, pCtx backend.PluginContext, query 
 			}
 		}
 
-		for varId, values := range grouped {
-				var varName string
-				for _, v := range qm.Variables {
-					if v.ID == varId {
-						varName = v.VariableName
-						break
-					}
-				}
+		varNameMap := make(map[int]string, len(qm.Variables))
+		for _, v := range qm.Variables {
+			varNameMap[v.ID] = v.VariableName
+		}
 
-				if varName == "" {
-					varName = fmt.Sprintf("%d", varId)
-				}
+		type item struct {
+			id       int
+			name     string 
+			sortName string 
+		}
 
-				frame := data.NewFrame(varName)
-
-				times := make([]time.Time, len(values))
-				vals := make([]float64, len(values))
-				for i, v := range values {
-					times[i] = v.Timestamp
-					vals[i] = v.Value
-				}
-
-				frame.Fields = append(frame.Fields,
-					data.NewField("time", nil, times),
-					data.NewField("value", nil, vals),
-				)
-
-				response.Frames = append(response.Frames, frame)
+		items := make([]item, 0, len(grouped))
+		for varId := range grouped {
+			name := varNameMap[varId]
+			if name == "" {
+				name = fmt.Sprintf("%d", varId)
 			}
-	}
+			items = append(items, item{id: varId, name: name, sortName: strings.ToLower(name)})
+		}
 
+		sort.Slice(items, func(i, j int) bool {
+			return items[i].sortName < items[j].sortName
+		})
+
+		// Create frames using original names
+		for _, it := range items {
+			values := grouped[it.id]
+
+			frame := data.NewFrame(it.name)
+
+			times := make([]time.Time, len(values))
+			vals := make([]float64, len(values))
+
+			for i, v := range values {
+				times[i] = v.Timestamp
+				vals[i] = v.Value
+			}
+
+			frame.Fields = append(frame.Fields,
+				data.NewField("time", nil, times),
+				data.NewField("value", nil, vals),
+			)
+
+			response.Frames = append(response.Frames, frame)
+		}
+	}
 	log.DefaultLogger.Info("PLUGIN QUERY -- END --------------------------------")
 	return response
 }

@@ -20,12 +20,13 @@ export class DataSource extends DataSourceWithBackend<MyQuery, MyDataSourceOptio
   }
 
 filterQuery(query: MyQuery): boolean {
-  if (query.isLive && (!query.queryText || query.queryText === '')) {
-    return false;
+   if (query.isLive) {
+    if (!query.variables || query.variables.length === 0) {
+      return false;
+    }
   }
   
   return (
-    query.queryText !== undefined ||
     query.isLive !== undefined ||
     query.isAlarm !== undefined ||
     query.isEvent !== undefined ||
@@ -33,8 +34,6 @@ filterQuery(query: MyQuery): boolean {
     query.opcTags !== undefined ||
     query.pageIndex !== undefined ||
     query.pageSize !== undefined ||
-    query.variables !== undefined
-
-  );
+    query.variables !== undefined) ;
 }
 }

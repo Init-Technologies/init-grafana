@@ -15,7 +15,7 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
   const [selectedConnId, setSelectedConnId] = useState<number | null>(query.connectionId ?? null);
   const [selectedConnText, setSelectedConnText] = useState<string>(query.connectionText ?? '');
 
-  const [selectedVariable, setSelectedVariable] = useState<string>(query.queryText ?? ''); 
+  const [selectedVariables, setSelectedVariables] = useState<VariableType[]>(query.variables ?? []);
   const [variables, setVariables] = useState<VariableType[]>([]);
 
   const [type, setType] = useState<'Alarm' | 'Event' | 'Live'>(
@@ -45,13 +45,13 @@ export function QueryEditor({ datasource, query, onChange, onRunQuery }: Props) 
       opcTags : opcTags,
       pageIndex : pageIndex,
       pageSize : pageSize,
-      variables : variables
+      variables : selectedVariables
     };
 
   onChange({ ...updatedQuery }); 
   
   onRunQuery();
-  }, [type, prefix, opcTags, pageIndex, pageSize,variables]);
+  }, [type, prefix, opcTags, pageIndex, pageSize,selectedVariables]);
 
   useEffect(() => {
     if (connections.length === 0) {
@@ -81,22 +81,20 @@ useEffect(() => {
 
   useEffect(() => {
     console.log('Selected Connection ID:', selectedConnId);
-    console.log('Selected Variable:', selectedVariable);
+    console.log('Selected Variable:', selectedVariables);
     console.log('Selected Connection Text:', selectedConnText);
-  }, [selectedConnId, selectedVariable, selectedConnText]);
+  }, [selectedConnId, selectedVariables, selectedConnText]);
 
 
   const onVariableChange = (selectedVars: VariableType[]) => {
-    const ids = selectedVars.map(v => v.id);
-    const idsString = ids.join(',');
-    setSelectedVariable(idsString);
+    setSelectedVariables(selectedVars);
 
     onChange({
       ...query,
-      queryText: idsString, 
-      variables: selectedVars
+      variables: selectedVars,
     });
-    onRunQuery(); 
+
+    onRunQuery();
   };
 
   const onConnectionChange = (id: number | null, name?: string) => {
@@ -125,17 +123,17 @@ const onTextVariableChange = async (value: string) => {
   const connId = selectedConnId ?? 0;
   const skipFilter = selectedConnId === null;
   const skipPagination = value.trim() === '' && selectedConnId === null;
+
   const newVars = await VariablesApiGet(connId, skipFilter, value, skipPagination);
 
   setVariables(prev => {
-    const merged = [...prev];
-    for (const v of newVars) {
+    const merged = [...newVars];
+    for (const v of selectedVariables) {
       if (!merged.some(m => m.id === v.id)) merged.push(v);
     }
     return merged;
   });
 };
-
 
 
   async function VariablesApiGet(
@@ -160,7 +158,18 @@ const onTextVariableChange = async (value: string) => {
       });
 
       const response = await lastValueFrom(fetch);
-      setVariables(response.data);
+      setVariables(prev => {
+        const merged = [...response.data];
+
+        for (const v of selectedVariables) {
+          if (!merged.some(m => m.id === v.id)) {
+            merged.push(v);
+          }
+        }
+
+        return merged;
+      });
+
       return response.data;
     } catch (error) {
       console.error('Variable API error:', error);
@@ -191,9 +200,6 @@ const onTextVariableChange = async (value: string) => {
     }
   }
 
-  const selectedVariableIds = selectedVariable
-    ? selectedVariable.split(',').map(s => parseInt(s, 10)).filter(n => !isNaN(n))
-    : [];
 
   return (
     <Stack direction="column" gap={1}>
@@ -213,7 +219,7 @@ const onTextVariableChange = async (value: string) => {
       {variables.length > 0 ? (
         <div className="gf-form-group">
           <VariableSelector
-            value={selectedVariableIds}
+            value={selectedVariables}
             onChange={onVariableChange}
             onTextChange={onTextVariableChange}
             variables={variables}
