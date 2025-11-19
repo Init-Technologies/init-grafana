@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
   "name": "InView Cloud SCADA",
-  "id": "init-inview-datasource",
+  "id": "inittechnologies-inview-datasource",
   "metrics": true,
   "backend": true,
   "executable": "gpx_in_view",
