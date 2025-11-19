@@ -1,8 +1,11 @@
 # InView Cloud SCADA
-#test
+
 ![Version Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.version&url=https://grafana.com/api/plugins/init-inview-datasource&label=Marketplace&prefix=v&color=F47A20)
 ![Downloads Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.downloads&url=https://grafana.com/api/plugins/init-inview-datasource&label=Downloads&color=4c1)
 ![Grafana Badge](https://img.shields.io/badge/dynamic/json?logo=grafana&query=$.grafanaDependency&url=https://grafana.com/api/plugins/init-inview-datasource&label=Grafana&color=blue)
+![Build Badge](https://img.shields.io/github/actions/workflow/status/Init-Technologies/init-grafana/release.yml)
+![License Badge](https://img.shields.io/github/license/Init-Technologies/init-grafana)
+![Release Badge](https://img.shields.io/github/v/release/Init-Technologies/init-grafana)
 
 ## Overview
 
@@ -13,8 +16,8 @@
 - Query editor for selecting variables, connections, and live/alarm/event data  
 - Pagination and filtering support for large datasets  
 
-![Dashboard Example](https://raw.githubusercontent.com/init/inview-datasource/main/img/Dashboard.png)
-![Query Editor](https://raw.githubusercontent.com/init/inview-datasource/main/img/Datasource.png)
+![Dashboard Example](https://github.com/Init-Technologies/init-grafana/blob/main/src/img/Dashboard.png)
+![Query Editor](https://github.com/Init-Technologies/init-grafana/blob/main/src/img/Datasource.png)
 
 ---
 

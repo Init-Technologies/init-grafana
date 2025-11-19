@@ -9,7 +9,7 @@
   "info": {
     "description": "InView SCADA - Enterprise business data observability platform. Connect, visualize, and monitor your business operations in real-time with industrial-grade reliability.",
     "author": {
-      "name": "Init",
+      "name": "Init Technologies",
       "url": "https://industrial-it.software" 
     },
     "keywords": ["datasource","inview,scada"],
@@ -20,21 +20,21 @@
     "links": [
       {
         "name": "Website",
-        "url": "https://github.com/init/inview-datasource"
+        "url": "https://industrial-it.software"
       },
       {
         "name": "License",  
-        "url": "https://github.com/init/inview-datasource/blob/main/LICENSE"
+        "url": "https://github.com/Init-Technologies/init-grafana/blob/main/LICENSE"
       }
     ],
    "screenshots": [
       {
         "name": "Dashboard Example",
-        "path": "img/Dashboard.png"
+        "path": "https://github.com/Init-Technologies/init-grafana/blob/main/src/img/Dashboard.png"
       },
       {
         "name": "Query Editor",
-        "path": "img/Datasource.png"
+        "path": "https://github.com/Init-Technologies/init-grafana/blob/main/src/img/Datasource.png"
       }
     ],
     "version": "1.0.0", 
