@@ -12,7 +12,7 @@
       "name": "Init Technologies",
       "url": "https://industrial-it.software" 
     },
-    "keywords": ["datasource","inview,scada"],
+    "keywords": ["datasource","inview","scada"],
     "logos": {
       "small": "img/inview.png",
       "large": "img/inview.png"
