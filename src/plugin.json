@@ -1,37 +1,45 @@
 {
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
-  "name": "InView",
+  "name": "InView Cloud SCADA",
   "id": "init-inview-datasource",
   "metrics": true,
   "backend": true,
   "executable": "gpx_in_view",
   "info": {
-    "description": "",
+    "description": "InView SCADA - Enterprise business data observability platform. Connect, visualize, and monitor your business operations in real-time with industrial-grade reliability.",
     "author": {
-      "name": "Init"
+      "name": "Init",
+      "url": "https://industrial-it.software" 
     },
-    "keywords": ["datasource"],
+    "keywords": ["datasource","inview,scada"],
     "logos": {
-      "small": "img/logo.svg",
-      "large": "img/logo.svg"
+      "small": "img/inview.png",
+      "large": "img/inview.png"
     },
-    "links": [],
-    "screenshots": [],
-    "version": "%VERSION%",
-    "updated": "%TODAY%"
+    "links": [
+      {
+        "name": "Website",
+        "url": "https://github.com/init/inview-datasource"
+      },
+      {
+        "name": "License",  
+        "url": "https://github.com/init/inview-datasource/blob/main/LICENSE"
+      }
+    ],
+   "screenshots": [
+      {
+        "name": "Dashboard Example",
+        "path": "img/Dashboard.png"
+      },
+      {
+        "name": "Query Editor",
+        "path": "img/Datasource.png"
+      }
+    ],
+    "version": "1.0.0", 
+    "updated": "2025-11-18"
   },
-  "routes": [ 
-    { 
-      "path": "myCustomEndpoint", 
-
-      "method": "GET", 
-
-      "url": "", 
-
-      "headers": [] 
-    } 
-  ], 
   "dependencies": {
     "grafanaDependency": ">=10.4.0",
     "plugins": []
