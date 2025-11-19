@@ -19,9 +19,7 @@ import (
     "strconv"
 )
 
-// var GlobalBaseUrl string = "http://192.168.22.48:5123"
 var GlobalBaseUrl string = "https://cloud.oilfield-monitor.com"
-//var GlobalBaseUrl string = "https://stage.inviewscada.com"
 
 
 // UnmarshalJSON implements the json.Unmarshaler interface
