@@ -30,11 +30,11 @@
    "screenshots": [
       {
         "name": "Dashboard Example",
-        "path": "https://github.com/Init-Technologies/init-grafana/blob/main/src/img/Dashboard.png"
+        "path": "img/Dashboard.png"
       },
       {
         "name": "Query Editor",
-        "path": "https://github.com/Init-Technologies/init-grafana/blob/main/src/img/Datasource.png"
+        "path": "img/Datasource.png"
       }
     ],
     "version": "1.0.0", 
